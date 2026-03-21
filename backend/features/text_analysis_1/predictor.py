@@ -35,8 +35,8 @@ class TextPredictor:
         """Load trained model from checkpoint."""
         self.model = TextClassifier(model_name=self.model_name)
         
-        checkpoint = torch.load(checkpoint_path, map_location=self.device)
-        self.model.load_state_dict(checkpoint['model_state_dict'])
+        checkpoint = torch.load(checkpoint_path, map_location="cpu")
+        self.model.load_state_dict(checkpoint["model_state_dict"])
         self.model.to(self.device)
         self.model.eval()
         

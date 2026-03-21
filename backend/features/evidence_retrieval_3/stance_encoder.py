@@ -37,7 +37,7 @@ class NeuralStanceScorer:
         from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
         self.device = torch.device(device)
-        ckpt = torch.load(checkpoint_path, map_location=self.device)
+        ckpt = torch.load(checkpoint_path, map_location="cpu")
         model_name = ckpt.get("model_name", "distilroberta-base")
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForSequenceClassification.from_pretrained(

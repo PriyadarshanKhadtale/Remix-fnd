@@ -368,6 +368,16 @@ curl -X POST http://localhost:8000/detect \
 
 ## 📈 Performance
 
+### Verifying metrics (reproducible)
+
+After training (or with a saved `models/text_classifier/best_model.pt`) and with `data/processed/fakenewsnet/test.json` present, run from the **repository root**:
+
+```bash
+python3 training/scripts/run_benchmarks.py --device auto
+```
+
+This writes `benchmark_results/latest.json` with **accuracy**, **macro F1**, **AUROC** (binary), **per-class report**, **git commit**, **torch/device**, and **mean batch-1 forward latency** for the veracity head only (not the full multi-modal API). See `training/README.md` for `evaluate.py --json_out` and Colab/GPU notes.
+
 ### Model Metrics
 
 | Metric | Score |
