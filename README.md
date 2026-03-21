@@ -308,6 +308,12 @@ The [Dockerfile](./Dockerfile) defaults to **lite** mode on Render (`RENDER=true
 2. `cd frontend && npm install && npm run dev` — **`frontend/.env.development`** already points at `https://remix-fnd.onrender.com`, so health/detect hit Render (not `localhost:3000/api`). For a **local** backend on :8000, add **`frontend/.env.development.local`** with `VITE_USE_LOCAL_API=1`.
 3. **Fake News Detection** works on hosted lite; **AI** / **Fact Check** need the full backend locally or `REMIX_FULL_STACK` on Render.
 
+### Option 3: Reproduce text-classifier benchmarks (Google Colab T4)
+
+1. Open [`colab/REMIX_FND_T4_Benchmarks.ipynb`](colab/REMIX_FND_T4_Benchmarks.ipynb) in [Google Colab](https://colab.research.google.com/) and enable **GPU** runtime.
+2. Run all cells — trains on `data/processed/fakenewsnet/*.json`, evaluates the full test split, writes `benchmark_summary.json` and `benchmark_eval_metrics.json`.
+3. Locally (with GPU/MPS): `pip install -r training/requirements-train.txt` then `python training/scripts/run_benchmarks.py --device auto`.
+
 ---
 
 ## 🔌 API Reference
@@ -367,16 +373,6 @@ curl -X POST http://localhost:8000/detect \
 ---
 
 ## 📈 Performance
-
-### Verifying metrics (reproducible)
-
-After training (or with a saved `models/text_classifier/best_model.pt`) and with `data/processed/fakenewsnet/test.json` present, run from the **repository root**:
-
-```bash
-python3 training/scripts/run_benchmarks.py --device auto
-```
-
-This writes `benchmark_results/latest.json` with **accuracy**, **macro F1**, **AUROC** (binary), **per-class report**, **git commit**, **torch/device**, and **mean batch-1 forward latency** for the veracity head only (not the full multi-modal API). See `training/README.md` for `evaluate.py --json_out` and Colab/GPU notes.
 
 ### Model Metrics
 

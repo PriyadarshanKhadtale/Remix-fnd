@@ -9,34 +9,27 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT / "backend"))
+sys.path.insert(0, str(SCRIPTS))
 import core.torch_env  # noqa: E402, F401
 
 import torch
-from sklearn.metrics import (
-    accuracy_score,
-    classification_report,
-    f1_score,
-    precision_recall_fscore_support,
-    roc_auc_score,
-)
+from sklearn.metrics import accuracy_score, classification_report, f1_score, precision_recall_fscore_support
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from transformers import AutoTokenizer
 
 from features.text_analysis_1.domain_adversarial import DomainAdversarialClassifier  # noqa: E402
 
-# Reuse training dataset layout
-sys.path.insert(0, str(Path(__file__).parent))
+from device_util import device_pretty, resolve_device  # noqa: E402
 from train_text_model import NewsDataset, TextClassifier  # noqa: E402
 
 
 def load_model(model_path: Path, device: torch.device):
-    # Always load tensors on CPU first; avoids MPS/cuda errors during load_state_dict.
-    ckpt = torch.load(model_path, map_location="cpu")
+    ckpt = torch.load(model_path, map_location=device)
     sd = ckpt.get("model_state_dict", ckpt)
     if ckpt.get("model_type") == "domain_adversarial" or any(k.startswith("veracity.") for k in sd):
         nd = int(ckpt.get("num_domains", 2))
@@ -52,66 +45,13 @@ def load_model(model_path: Path, device: torch.device):
 
 @torch.no_grad()
 def run_eval(model, loader, device):
-    y_true, y_pred, _ = run_eval_with_scores(model, loader, device, collect_scores=False)
-    return y_true, y_pred
-
-
-@torch.no_grad()
-def run_eval_with_scores(
-    model,
-    loader,
-    device,
-    collect_scores: bool = True,
-) -> Tuple[List[int], List[int], Optional[List[float]]]:
-    y_true, y_pred, y_score = [], [], []
+    y_true, y_pred = [], []
     for batch in tqdm(loader, desc="eval"):
-        input_ids = batch["input_ids"].to(device)
-        attention_mask = batch["attention_mask"].to(device)
-        logits = model(input_ids, attention_mask)
+        logits = model(batch["input_ids"].to(device), batch["attention_mask"].to(device))
         pred = logits.argmax(dim=-1).cpu().numpy().tolist()
         y_pred.extend(pred)
         y_true.extend(batch["label"].numpy().tolist())
-        if collect_scores:
-            prob_fake = torch.softmax(logits, dim=-1)[:, 1].cpu().numpy().tolist()
-            y_score.extend(prob_fake)
-    if not collect_scores:
-        return y_true, y_pred, None
-    return y_true, y_pred, y_score
-
-
-def compute_metrics_bundle(
-    y_true: List[int],
-    y_pred: List[int],
-    y_score: Optional[List[float]] = None,
-) -> Dict[str, Any]:
-    """Scalar metrics for benchmarking / JSON export (binary veracity)."""
-    acc = float(accuracy_score(y_true, y_pred))
-    macro_f1 = float(f1_score(y_true, y_pred, average="macro", zero_division=0))
-    weighted_f1 = float(f1_score(y_true, y_pred, average="weighted", zero_division=0))
-    p, r, f, _ = precision_recall_fscore_support(
-        y_true, y_pred, average="binary", pos_label=1, zero_division=0
-    )
-    bundle: Dict[str, Any] = {
-        "accuracy": acc,
-        "accuracy_percent": round(100.0 * acc, 4),
-        "macro_f1": macro_f1,
-        "macro_f1_percent": round(100.0 * macro_f1, 4),
-        "weighted_f1": weighted_f1,
-        "precision_fake": float(p),
-        "recall_fake": float(r),
-        "f1_fake": float(f),
-        "classification_report": classification_report(
-            y_true, y_pred, digits=4, output_dict=True, zero_division=0
-        ),
-    }
-    if y_score is not None and len(set(y_true)) > 1:
-        try:
-            bundle["auroc"] = float(roc_auc_score(y_true, y_score))
-        except ValueError:
-            bundle["auroc"] = None
-    else:
-        bundle["auroc"] = None
-    return bundle
+    return y_true, y_pred
 
 
 def main():
@@ -119,7 +59,12 @@ def main():
     ap.add_argument("--model_path", type=str, required=True)
     ap.add_argument("--test_data", type=str, required=True)
     ap.add_argument("--batch_size", type=int, default=32)
-    ap.add_argument("--device", type=str, default="cpu")
+    ap.add_argument(
+        "--device",
+        type=str,
+        default="cpu",
+        help="cpu | cuda | mps | auto (prefers CUDA, then MPS, else CPU)",
+    )
     ap.add_argument(
         "--max_samples",
         type=int,
@@ -127,14 +72,14 @@ def main():
         help="Evaluate on first N test examples only (quick demo)",
     )
     ap.add_argument(
-        "--json_out",
+        "--output_json",
         type=str,
         default=None,
-        help="Write metrics JSON to this path (parent dirs created)",
+        help="Write metrics JSON to this path (for Colab / CI)",
     )
     args = ap.parse_args()
 
-    device = torch.device(args.device)
+    device = resolve_device(args.device)
     model_path = Path(args.model_path)
     test_path = Path(args.test_data)
     if not model_path.exists() or not test_path.exists():
@@ -145,24 +90,35 @@ def main():
     loader = DataLoader(ds, batch_size=args.batch_size)
 
     model = load_model(model_path, device)
-    y_true, y_pred, y_score = run_eval_with_scores(model, loader, device, collect_scores=True)
+    y_true, y_pred = run_eval(model, loader, device)
 
+    print(f"\nDevice: {device_pretty(device)}")
     print("\nClassification report:")
-    print(classification_report(y_true, y_pred, digits=4, zero_division=0))
-    print(f"Macro F1: {100 * f1_score(y_true, y_pred, average='macro', zero_division=0):.2f}%")
+    print(classification_report(y_true, y_pred, digits=4))
+    macro_f1 = float(f1_score(y_true, y_pred, average="macro"))
+    print(f"Macro F1: {100 * macro_f1:.2f}%")
 
-    if args.json_out:
+    if args.output_json:
+        report = classification_report(y_true, y_pred, digits=6, output_dict=True, zero_division=0)
+        acc = float(accuracy_score(y_true, y_pred))
+        p_macro, r_macro, f_macro, _ = precision_recall_fscore_support(
+            y_true, y_pred, average="macro", zero_division=0
+        )
         out = {
+            "accuracy_percent": round(100.0 * acc, 4),
+            "macro_precision": float(p_macro),
+            "macro_recall": float(r_macro),
+            "macro_f1": float(f_macro),
+            "n_test": len(y_true),
+            "device": device_pretty(device),
             "model_path": str(model_path.resolve()),
             "test_data": str(test_path.resolve()),
-            "n_examples": len(y_true),
-            "device": str(device),
-            "metrics": compute_metrics_bundle(y_true, y_pred, y_score),
+            "sklearn_report": report,
         }
-        outp = Path(args.json_out)
+        outp = Path(args.output_json)
         outp.parent.mkdir(parents=True, exist_ok=True)
         outp.write_text(json.dumps(out, indent=2), encoding="utf-8")
-        print(f"\nWrote metrics JSON: {outp}")
+        print(f"\nWrote metrics JSON: {outp.resolve()}")
 
 
 if __name__ == "__main__":

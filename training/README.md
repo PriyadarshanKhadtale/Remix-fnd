@@ -10,10 +10,7 @@ Scripts and configurations for training REMIX-FND models.
 training/
 ├── scripts/
 │   ├── train_text_model.py    # Train text classifier
-│   ├── evaluate.py            # Evaluate models (+ optional --json_out)
-│   ├── run_benchmarks.py      # Full test-set metrics + AUROC + latency JSON
-│   ├── orchestrate.py         # Veracity (+ optional stance) pipeline
-│   └── ...
+│   └── evaluate.py            # Evaluate models
 ├── configs/
 │   └── training_config.yaml   # Hyperparameters
 ├── notebooks/
@@ -23,47 +20,49 @@ training/
 
 ## Quick Start
 
+Install training deps (from repo root):
+
+```bash
+pip install -r training/requirements-train.txt
+```
+
 ### Train Text Model
 
 ```bash
-python scripts/train_text_model.py \
-  --data_dir ../data/processed/fakenewsnet \
+python training/scripts/train_text_model.py \
+  --data_dir data/processed/fakenewsnet \
   --epochs 5 \
-  --batch_size 32
+  --batch_size 32 \
+  --device auto
 ```
+
+`--device` can be `cpu`, `cuda`, `mps` (Apple Silicon), or `auto`.
 
 ### Evaluate Model
 
-From repo root:
-
 ```bash
-python3 training/scripts/evaluate.py \
+python training/scripts/evaluate.py \
   --model_path models/text_classifier/best_model.pt \
   --test_data data/processed/fakenewsnet/test.json \
-  --device cpu
+  --device auto \
+  --output_json benchmark_eval_metrics.json
 ```
 
-Optional machine-readable metrics (accuracy, macro F1, AUROC, full report):
+### One-shot benchmark (train + full test + JSON)
+
+From repository root:
 
 ```bash
-python3 training/scripts/evaluate.py \
-  --model_path models/text_classifier/best_model.pt \
-  --test_data data/processed/fakenewsnet/test.json \
-  --device cuda \
-  --json_out benchmark_results/eval_snapshot.json
+python training/scripts/run_benchmarks.py --device auto --epochs 3
 ```
 
-### Reproducible benchmark bundle
+### Google Colab (T4 GPU)
 
-Runs the full test split, records git commit, torch version, optional batch-1 latency (not the same as full API latency):
+1. Open `colab/REMIX_FND_T4_Benchmarks.ipynb` in [Colab](https://colab.research.google.com/) (File → Upload notebook, or open from GitHub).
+2. **Runtime → Change runtime type → GPU**.
+3. Run all cells. Downloads `benchmark_summary.json` and `benchmark_eval_metrics.json` at the end.
 
-```bash
-python3 training/scripts/run_benchmarks.py --device auto
-# Quick smoke test:
-python3 training/scripts/run_benchmarks.py --max_samples 200 --latency_runs 0
-```
-
-Outputs `benchmark_results/benchmark_<utc_timestamp>.json` and `benchmark_results/latest.json` (gitignored except `.gitkeep`).
+Ensure `data/processed/fakenewsnet/{train,val,test}.json` is in the repo or uploaded; the notebook clones from GitHub.
 
 ## Configuration
 

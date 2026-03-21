@@ -23,6 +23,8 @@ from transformers import AutoModel, AutoTokenizer
 from tqdm import tqdm
 import numpy as np
 
+from device_util import device_pretty, resolve_device
+
 
 class TextClassifier(nn.Module):
     """Text classifier model."""
@@ -133,7 +135,12 @@ def main():
     parser.add_argument('--epochs', type=int, default=3)
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--lr', type=float, default=2e-5)
-    parser.add_argument('--device', type=str, default='cpu')
+    parser.add_argument(
+        '--device',
+        type=str,
+        default='cpu',
+        help="cpu | cuda | mps | auto (prefers CUDA, then MPS, else CPU)",
+    )
     parser.add_argument('--max_samples', type=int, default=None,
                         help='Cap rows per split (quick CPU demo)')
     args = parser.parse_args()
@@ -143,12 +150,12 @@ def main():
     print("=" * 60)
     
     # Setup
-    device = args.device
+    device = resolve_device(args.device)
     data_dir = Path(args.data_dir)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    print(f"Device: {device}")
+    print(f"Device: {device_pretty(device)}")
     print(f"Data: {data_dir}")
     print(f"Output: {output_dir}")
     

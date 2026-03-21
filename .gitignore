@@ -25,6 +25,7 @@ frontend/dist/
 .pytest_cache/
 .mypy_cache/
 
-# Generated benchmark JSON (re-run training/scripts/run_benchmarks.py locally)
-benchmark_results/*
-!benchmark_results/.gitkeep
+# Benchmark outputs (regenerate with training/scripts/run_benchmarks.py)
+benchmark_eval_metrics.json
+benchmark_summary.json
+benchmark_results/
