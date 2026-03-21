@@ -20,7 +20,9 @@ from pathlib import Path
 # Setup paths (needed before core.torch_env is importable)
 backend_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
-os.chdir(backend_dir.parent)
+# Local dev: models/ lives next to backend/. Docker/Render: both are under /app.
+repo_root = backend_dir if (backend_dir / "models").exists() else backend_dir.parent
+os.chdir(repo_root)
 
 import core.torch_env  # noqa: F401 — sets OMP/MKL env before torch
 import torch
