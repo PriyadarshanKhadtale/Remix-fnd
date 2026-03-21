@@ -34,6 +34,11 @@ RUN mkdir -p /app/data/fact_checking /app/data/ai_detection \
     && cp -r /app/data_fact_checking/. /app/data/fact_checking/ 2>/dev/null || true \
     && cp -r /app/data_ai_detection/. /app/data/ai_detection/ 2>/dev/null || true
 
+# Bake DistilRoBERTa into the image so runtime does not wait on Hugging Face download.
+ENV HF_HOME=/app/.cache/huggingface
+RUN mkdir -p /app/.cache/huggingface \
+    && python -c "from transformers import AutoTokenizer, AutoModel; AutoTokenizer.from_pretrained('distilroberta-base'); AutoModel.from_pretrained('distilroberta-base')"
+
 EXPOSE 8000
 
 # Full API: run:app. Free-tier OOM? Set env REMIX_RENDER_LITE=1 on Render to use rule-based lite API.

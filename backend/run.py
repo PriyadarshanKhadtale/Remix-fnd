@@ -15,6 +15,8 @@ import os
 import sys
 import time
 import base64
+import asyncio
+import traceback
 from pathlib import Path
 
 # Setup paths (needed before core.torch_env is importable)
@@ -205,65 +207,82 @@ evidence_retriever = None
 image_analyzer = None
 early_exit_router = None
 
+# Background init so Render / load balancers get HTTP immediately (avoids deploy timeout).
+_pipeline_ready = False
+_models_loading = False
+_startup_error: Optional[str] = None
 
-@app.on_event("startup")
-async def startup():
-    """Initialize all components on startup."""
+
+def _sync_load_all():
+    """Blocking ML + module init; runs in a thread pool."""
     global model, tokenizer, explainer, ai_detector, evidence_retriever, image_analyzer, early_exit_router
-    
+
     print(f"\n{'='*60}")
-    print(f"🚀 {APP_NAME} v{APP_VERSION}")
+    print(f"🚀 {APP_NAME} v{APP_VERSION} (background load)")
     print(f"   Paper-aligned routing: MC dropout optional (mc_dropout_passes); Table 1 depths; 6 AI detectors")
     print(f"{'='*60}")
-    
-    # Load tokenizer
+
     print("\n📦 Loading components...")
-    tokenizer = AutoTokenizer.from_pretrained('distilroberta-base')
+    tokenizer = AutoTokenizer.from_pretrained("distilroberta-base")
     print("  ✓ Tokenizer loaded")
-    
-    # Load model (baseline or domain-adversarial from training/)
+
     model, checkpoint = load_veracity_checkpoint()
     model.eval()
     acc = checkpoint.get("val_acc", 0) if checkpoint else 0
     if acc:
         print(f"  ✓ Checkpoint val accuracy (train metrics): {acc:.1f}%")
-    
-    # Initialize feature modules
+
     print("\n📚 Loading Paper Modules...")
-    
-    # Module 1: MSCIM (Text + Image)
+
     image_analyzer = ImageAnalyzer()
     print("  ✓ Module 1 (MSCIM): Image Analysis with manipulation detection")
-    
-    # Module 2: EVRS (Evidence Retrieval) - FAISS initialized lazily
+
     evidence_retriever = EvidenceRetriever()
     print(f"  ✓ Module 2 (EVRS): Evidence Retrieval (FAISS on-demand, {len(evidence_retriever.kb.facts)} facts)")
-    
-    # Module 3: ELDS (AI Detection + Explanations)
+
     ai_detector = AIContentDetector()
-    print(f"  ✓ Module 3 (ELDS): AI Detection (6-detector ensemble)")
-    
+    print("  ✓ Module 3 (ELDS): AI Detection (6-detector ensemble)")
+
     explainer = HierarchicalExplainer()
-    print(f"  ✓ Module 3 (ELDS): Hierarchical Explainer (3-tier)")
-    
-    # Early Exit Router
+    print("  ✓ Module 3 (ELDS): Hierarchical Explainer (3-tier)")
+
     early_exit_router = EarlyExitRouter()
     print(f"  ✓ Early Exit: Confidence-based routing (threshold: {EARLY_EXIT_THRESHOLD*100}%)")
-    
+
     print(f"\n{'='*60}")
     print("✅ All features ready!")
     print(f"{'='*60}")
-    print("""
-    📋 Paper Features Implemented:
-    ├─ Text Classification (DistilRoBERTa)
-    ├─ Image Manipulation Detection
-    ├─ FAISS Vector Search + Knowledge Base
-    ├─ AI Detection (Perplexity, Burstiness, Linguistic, etc.)
-    ├─ 3-Tier Hierarchical Explanations
-    ├─ Sentence-Level Attribution
-    └─ Early Exit with Confidence Routing
-    """)
-    print(f"📚 API Docs: http://localhost:8000/docs\n")
+
+
+async def _background_load():
+    global _models_loading, _pipeline_ready, _startup_error
+
+    _models_loading = True
+    _startup_error = None
+    try:
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _sync_load_all)
+        _pipeline_ready = True
+    except Exception as e:
+        _startup_error = str(e)
+        print(traceback.format_exc())
+    finally:
+        _models_loading = False
+
+
+@app.on_event("startup")
+async def startup():
+    """Bind HTTP immediately; load PyTorch / HF / KB in a worker thread."""
+    print("\n⚡ HTTP server up — ML pipeline loading in background (GET /health for status).")
+    asyncio.create_task(_background_load())
+
+
+def _require_pipeline():
+    if not _pipeline_ready:
+        msg = "Model pipeline is still loading. Retry shortly."
+        if _startup_error:
+            msg = f"Startup failed: {_startup_error}"
+        raise HTTPException(status_code=503, detail=msg)
 
 
 @app.get("/")
@@ -324,15 +343,28 @@ def health():
             if model.__class__.__name__ == "DomainAdversarialClassifier"
             else "baseline"
         )
+    if _startup_error:
+        phase = "failed"
+    elif _pipeline_ready:
+        phase = "ready"
+    elif _models_loading:
+        phase = "loading"
+    else:
+        phase = "pending"
+
     return {
         "status": "healthy",
+        "pipeline": phase,
+        "ready": _pipeline_ready,
+        "loading": _models_loading,
+        "startup_error": _startup_error,
         "modules": {
             "text_classifier": model is not None,
             "image_analyzer": image_analyzer is not None,
             "evidence_retriever": evidence_retriever is not None,
             "ai_detector": ai_detector is not None,
             "explainer": explainer is not None,
-            "early_exit": early_exit_router is not None
+            "early_exit": early_exit_router is not None,
         },
         "features": {
             "faiss_available": FAISS_AVAILABLE and EMBEDDINGS_AVAILABLE,
@@ -341,7 +373,7 @@ def health():
             "explanation_tiers": 3,
             "veracity_model": veracity_kind,
             "stance_checkpoint": stance_ckpt,
-        }
+        },
     }
 
 
@@ -358,9 +390,8 @@ def detect(request: DetectionRequest):
     - 3-tier hierarchical explanations
     - Early exit for high-confidence predictions
     """
-    if model is None:
-        raise HTTPException(status_code=503, detail="Model not loaded")
-    
+    _require_pipeline()
+
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
     
@@ -627,7 +658,9 @@ def explain(request: ExplainRequest):
     """
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
-    
+
+    _require_pipeline()
+
     # Get prediction first
     encoding = tokenizer(
         request.text,
@@ -663,7 +696,9 @@ def ai_detect(request: AIDetectRequest):
     """
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
-    
+
+    _require_pipeline()
+
     return to_serializable(ai_detector.detect(request.text))
 
 
@@ -680,7 +715,9 @@ def evidence(request: EvidenceRequest):
     """
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
-    
+
+    _require_pipeline()
+
     return to_serializable(
         evidence_retriever.retrieve(
             request.text,
@@ -707,7 +744,9 @@ def image_analyze(request: ImageAnalyzeRequest):
         image_data = base64.b64decode(request.image_base64)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid base64 image: {e}")
-    
+
+    _require_pipeline()
+
     result = image_analyzer.analyze(
         image_data=image_data,
         text=request.text
