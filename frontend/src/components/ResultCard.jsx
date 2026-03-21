@@ -2,6 +2,9 @@ import React from 'react'
 
 function ResultCard({ result, newsText }) {
   const isFake = result.prediction === 'FAKE'
+  const conf = Number(result.confidence ?? 0)
+  const realP = Number(result.real_probability ?? 0)
+  const fakeP = Number(result.fake_probability ?? 0)
   
   // Format processing time
   const formatTime = (ms) => {
@@ -27,14 +30,19 @@ function ResultCard({ result, newsText }) {
           <span className="verdict-subtext">NEWS</span>
         </div>
         <div className="confidence">
-          <span className="confidence-value">{result.confidence.toFixed(1)}%</span>
+          <span className="confidence-value">{conf.toFixed(1)}%</span>
           <span className="confidence-label">confidence</span>
         </div>
       </div>
 
       {/* Processing Stats Badge */}
-      {(result.processing_time_ms || result.early_exit || result.stages_run) && (
+      {(result.processing_time_ms || result.early_exit || result.stages_run || result.mode) && (
         <div className="processing-stats">
+          {result.mode && String(result.mode).includes('lite') && (
+            <span className="stat-badge stages-badge" title="Rule-based API (no neural model on this host)">
+              📋 Lite API
+            </span>
+          )}
           {result.processing_time_ms && (
             <span className="stat-badge time-badge" title="Processing time">
               ⚡ {formatTime(result.processing_time_ms)}
@@ -64,12 +72,12 @@ function ResultCard({ result, newsText }) {
         <div className="prob-bar-container">
           <div className="prob-label">
             <span>✅ Real</span>
-            <span>{result.real_probability.toFixed(1)}%</span>
+            <span>{realP.toFixed(1)}%</span>
           </div>
           <div className="prob-bar prob-bar-real">
             <div 
               className="prob-fill" 
-              style={{ width: `${result.real_probability}%` }}
+              style={{ width: `${realP}%` }}
             ></div>
           </div>
         </div>
@@ -77,12 +85,12 @@ function ResultCard({ result, newsText }) {
         <div className="prob-bar-container">
           <div className="prob-label">
             <span>🚨 Fake</span>
-            <span>{result.fake_probability.toFixed(1)}%</span>
+            <span>{fakeP.toFixed(1)}%</span>
           </div>
           <div className="prob-bar prob-bar-fake">
             <div 
               className="prob-fill" 
-              style={{ width: `${result.fake_probability}%` }}
+              style={{ width: `${fakeP}%` }}
             ></div>
           </div>
         </div>

@@ -1,11 +1,18 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import NewsInput from './components/NewsInput'
 import ResultCard from './components/ResultCard'
 import ExplanationPanel from './components/ExplanationPanel'
 import AIDetectionPanel from './components/AIDetectionPanel'
 import EvidencePanel from './components/EvidencePanel'
 import Header from './components/Header'
-import { detectFakeNews, detectAI, getEvidence } from './utils/api'
+import {
+  detectFakeNews,
+  detectAI,
+  getEvidence,
+  healthCheck,
+  parseHealthCapabilities,
+  getApiBaseLabel,
+} from './utils/api'
 import './styles/main.css'
 
 function App() {
@@ -16,6 +23,36 @@ function App() {
   const [error, setError] = useState(null)
   const [newsText, setNewsText] = useState('')
   const [activeTab, setActiveTab] = useState('detect') // detect, ai, evidence
+  const [caps, setCaps] = useState({
+    isLite: false,
+    isFull: false,
+    pipelineLoading: false,
+  })
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const h = await healthCheck()
+        if (!cancelled) setCaps(parseHealthCapabilities(h))
+      } catch {
+        if (!cancelled) setCaps({ isLite: false, isFull: false, pipelineLoading: false })
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const backendHint = caps.isLite
+    ? 'Backend: lite mode (rule-based). AI & fact-check tabs need full API or local backend.'
+    : caps.pipelineLoading
+      ? 'Backend: full pipeline still loading — some endpoints may return 503 briefly.'
+      : caps.isFull
+        ? 'Backend: full ML pipeline ready.'
+        : null
+
+  const liteTabsDisabled = caps.isLite
 
   const handleAnalyze = async (text, options = {}) => {
     setLoading(true)
@@ -50,12 +87,18 @@ function App() {
         }
         
       } else if (activeTab === 'ai') {
-        // Standalone AI detection
+        if (liteTabsDisabled) {
+          setError('AI Content Check is not available on the hosted lite API. Use local backend (python run.py) or upgrade Render + REMIX_FULL_STACK=1.')
+          return
+        }
         const response = await detectAI(text)
         setAiResult(response)
         
       } else if (activeTab === 'evidence') {
-        // Standalone evidence retrieval
+        if (liteTabsDisabled) {
+          setError('Fact Check is not available on the hosted lite API. Use local backend (python run.py) or upgrade Render + REMIX_FULL_STACK=1.')
+          return
+        }
         const response = await getEvidence(text)
         setEvidenceResult(response)
       }
@@ -63,7 +106,7 @@ function App() {
       const msg = err?.message || 'Request failed.'
       const net =
         /failed to fetch|networkerror|load failed/i.test(msg)
-          ? ' Start the backend: cd backend && python3 run.py (listens on port 8000), then restart npm run dev.'
+          ? ' Check VITE_API_BASE in .env.local, or start local backend: cd backend && python3 run.py (port 8000) with npm run dev.'
           : ''
       setError(msg + net)
     } finally {
@@ -86,7 +129,7 @@ function App() {
       <div className="background-glow"></div>
       
       {/* Header */}
-      <Header />
+      <Header backendHint={backendHint} />
 
       {/* Tab Navigation */}
       <nav className="tab-nav">
@@ -98,18 +141,26 @@ function App() {
           Fake News Detection
         </button>
         <button 
-          className={`tab-btn ${activeTab === 'ai' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('ai'); handleClear(); }}
+          type="button"
+          className={`tab-btn ${activeTab === 'ai' ? 'active' : ''} ${liteTabsDisabled ? 'tab-disabled' : ''}`}
+          onClick={() => { if (liteTabsDisabled) return; setActiveTab('ai'); handleClear(); }}
+          title={liteTabsDisabled ? 'Not available on lite API' : undefined}
+          aria-disabled={liteTabsDisabled}
         >
           <span className="tab-icon">🤖</span>
           AI Content Check
+          {liteTabsDisabled && ' (n/a)'}
         </button>
         <button 
-          className={`tab-btn ${activeTab === 'evidence' ? 'active' : ''}`}
-          onClick={() => { setActiveTab('evidence'); handleClear(); }}
+          type="button"
+          className={`tab-btn ${activeTab === 'evidence' ? 'active' : ''} ${liteTabsDisabled ? 'tab-disabled' : ''}`}
+          onClick={() => { if (liteTabsDisabled) return; setActiveTab('evidence'); handleClear(); }}
+          title={liteTabsDisabled ? 'Not available on lite API' : undefined}
+          aria-disabled={liteTabsDisabled}
         >
           <span className="tab-icon">📚</span>
           Fact Check
+          {liteTabsDisabled && ' (n/a)'}
         </button>
       </nav>
 
@@ -171,7 +222,7 @@ function App() {
       {/* Footer */}
       <footer className="footer">
         <p>Built with 🧠 AI · Always verify news from multiple sources</p>
-        <p className="footer-sub">REMIX-FND v3.0 · Backend running on localhost:8000</p>
+        <p className="footer-sub">REMIX-FND v3.0 · API: {getApiBaseLabel()}</p>
       </footer>
     </div>
   )

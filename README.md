@@ -298,7 +298,16 @@ npm run dev
 **Access:**
 - API: http://localhost:8000
 - Docs: http://localhost:8000/docs
-- Frontend: http://localhost:3000
+- Frontend: http://localhost:5173 (Vite default)
+
+### Hosted API + local UI (e.g. Render)
+
+The [Dockerfile](./Dockerfile) defaults to **lite** mode on Render (`RENDER=true`) so small instances stay up. **Full** PyTorch API: set `REMIX_FULL_STACK=1` and use enough RAM (about 2GB+).
+
+1. Deploy the repo on Render (Web Service, root `Dockerfile`, context `.`).
+2. In `frontend`, copy `frontend/.env.example` to `.env.local` and set:
+   `VITE_API_BASE=https://your-service.onrender.com`
+3. `cd frontend && npm install && npm run dev` — open the Vite URL; **Fake News Detection** works on lite; **AI** / **Fact Check** tabs need the full backend locally or `REMIX_FULL_STACK` on Render.
 
 ---
 

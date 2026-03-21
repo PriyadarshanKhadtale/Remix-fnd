@@ -7,7 +7,7 @@
  * In `npm run dev`, use same-origin `/api` so Vite proxies to the backend (avoids CORS / localhost issues).
  * Production / preview: full URL. Override anytime: VITE_API_BASE=https://api.example.com npm run build
  */
-function getApiBase() {
+export function getApiBase() {
   const env = import.meta.env.VITE_API_BASE
   if (env) return env.replace(/\/$/, '')
   if (import.meta.env.DEV) return '/api'
@@ -15,6 +15,84 @@ function getApiBase() {
 }
 
 const API_BASE = getApiBase()
+
+/** Short label for footer (hide long URLs) */
+export function getApiBaseLabel() {
+  const b = getApiBase()
+  if (b === '/api') return 'local (Vite → :8000)'
+  try {
+    const u = new URL(b.startsWith('http') ? b : `https://${b}`)
+    return u.host || b
+  } catch {
+    return b
+  }
+}
+
+/**
+ * Infer backend capabilities from GET /health (run.py vs run_lite).
+ */
+export function parseHealthCapabilities(health) {
+  if (!health || typeof health !== 'object') {
+    return { isLite: false, isFull: false, pipelineLoading: false, raw: health }
+  }
+  if (health.mode === 'lite') {
+    return { isLite: true, isFull: false, pipelineLoading: false, raw: health }
+  }
+  const ready = health.ready === true
+  const loading = health.loading === true || health.pipeline === 'loading'
+  return {
+    isLite: false,
+    isFull: ready,
+    pipelineLoading: loading,
+    raw: health,
+  }
+}
+
+/**
+ * Map run_lite /detect JSON into shapes the UI already understands.
+ */
+export function normalizeDetectResponse(data) {
+  if (!data || typeof data !== 'object') return data
+  const isLite =
+    data.mode === 'rule-based-lite' ||
+    (typeof data.mode === 'string' && data.mode.includes('lite'))
+
+  if (!isLite) return data
+
+  const ind = data.indicators_found || {}
+  const ruleScore = Math.min(
+    100,
+    (Number(ind.suspicious_words) || 0) * 12 +
+      (Number(ind.clickbait_patterns) || 0) * 18 +
+      (ind.excessive_caps ? 15 : 0) +
+      (ind.excessive_exclamation ? 10 : 0)
+  )
+
+  let explanation = data.explanation
+  if (explanation && typeof explanation === 'object') {
+    explanation = {
+      ...explanation,
+      verdict_explanation:
+        explanation.verdict_explanation || explanation.confidence_reason || null,
+    }
+  }
+
+  return {
+    ...data,
+    feature_scores: data.feature_scores || { rule_based_heuristics: ruleScore },
+    explanation,
+  }
+}
+
+async function readErrorDetail(response) {
+  try {
+    const j = await response.json()
+    if (j?.detail) return typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail)
+  } catch {
+    /* ignore */
+  }
+  return response.statusText || `HTTP ${response.status}`
+}
 
 /**
  * Detect fake news with all available features
@@ -58,10 +136,10 @@ export async function detectFakeNews(text, options = {}) {
   })
 
   if (!response.ok) {
-    throw new Error(`Detection failed: ${response.statusText}`)
+    throw new Error(`Detection failed: ${await readErrorDetail(response)}`)
   }
 
-  return response.json()
+  return normalizeDetectResponse(await response.json())
 }
 
 /**
@@ -75,7 +153,7 @@ export async function detectAI(text) {
   })
 
   if (!response.ok) {
-    throw new Error(`AI detection failed: ${response.statusText}`)
+    throw new Error(`AI detection failed: ${await readErrorDetail(response)}`)
   }
 
   return response.json()
@@ -96,7 +174,7 @@ export async function getEvidence(text, maxResults = 10, uncertainty = 0.5) {
   })
 
   if (!response.ok) {
-    throw new Error(`Evidence retrieval failed: ${response.statusText}`)
+    throw new Error(`Evidence retrieval failed: ${await readErrorDetail(response)}`)
   }
 
   return response.json()
@@ -116,7 +194,7 @@ export async function getExplanation(text, level = 'intermediate') {
   })
 
   if (!response.ok) {
-    throw new Error(`Explanation failed: ${response.statusText}`)
+    throw new Error(`Explanation failed: ${await readErrorDetail(response)}`)
   }
 
   return response.json()
@@ -136,7 +214,7 @@ export async function analyzeImage(imageBase64, text = null) {
   })
 
   if (!response.ok) {
-    throw new Error(`Image analysis failed: ${response.statusText}`)
+    throw new Error(`Image analysis failed: ${await readErrorDetail(response)}`)
   }
 
   return response.json()

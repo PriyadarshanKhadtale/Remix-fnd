@@ -169,6 +169,16 @@ body {
   border-color: transparent;
 }
 
+.tab-btn.tab-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tab-btn.tab-disabled:hover {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+}
+
 .tab-icon { font-size: 1.1rem; }
 
 /* Main Content */
