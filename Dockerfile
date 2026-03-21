@@ -20,8 +20,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && git lfs install
 
-COPY backend/requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+# CPU-only PyTorch: default pip on Linux pulls CUDA wheels (~GB + high RAM). Render has no GPU.
+COPY backend/requirements-docker.txt /app/requirements-docker.txt
+RUN pip install --no-cache-dir torch==2.1.2 torchvision==0.16.2 \
+    --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r /app/requirements-docker.txt
 
 COPY backend/ /app/
 COPY models/ /app/models/
@@ -33,4 +36,5 @@ RUN mkdir -p /app/data/fact_checking /app/data/ai_detection \
 
 EXPOSE 8000
 
-CMD ["sh", "-c", "exec uvicorn run:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Full API: run:app. Free-tier OOM? Set env REMIX_RENDER_LITE=1 on Render to use rule-based lite API.
+CMD ["sh", "-c", "if [ \"${REMIX_RENDER_LITE}\" = \"1\" ]; then exec uvicorn run_lite:app --host 0.0.0.0 --port ${PORT:-8000}; else exec uvicorn run:app --host 0.0.0.0 --port ${PORT:-8000}; fi"]

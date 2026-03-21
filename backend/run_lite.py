@@ -9,12 +9,12 @@ import sys
 import time
 from pathlib import Path
 
-# Setup paths
+# Setup paths (match run.py: flat Docker layout has models/ next to backend files)
 backend_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
-os.chdir(backend_dir.parent)
+repo_root = backend_dir if (backend_dir / "models").exists() else backend_dir.parent
+os.chdir(repo_root)
 
-import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
