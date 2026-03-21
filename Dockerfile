@@ -41,5 +41,7 @@ RUN mkdir -p /app/.cache/huggingface \
 
 EXPOSE 8000
 
-# Full API: run:app. Free-tier OOM? Set env REMIX_RENDER_LITE=1 on Render to use rule-based lite API.
-CMD ["sh", "-c", "if [ \"${REMIX_RENDER_LITE}\" = \"1\" ]; then exec uvicorn run_lite:app --host 0.0.0.0 --port ${PORT:-8000}; else exec uvicorn run:app --host 0.0.0.0 --port ${PORT:-8000}; fi"]
+# Render sets RENDER=true. Default to run_lite on Render (512Mi often OOMs importing full torch → 502).
+# Full ML on Render: REMIX_FULL_STACK=1 + more RAM (e.g. 2GB+). REMIX_RENDER_LITE=1 forces lite anywhere.
+# Local Docker: RENDER unset → full run:app.
+CMD ["sh", "-c", "if [ \"${REMIX_RENDER_LITE}\" = \"1\" ]; then exec uvicorn run_lite:app --host 0.0.0.0 --port ${PORT:-8000}; elif [ \"${RENDER}\" = \"true\" ] && [ \"${REMIX_FULL_STACK}\" != \"1\" ]; then exec uvicorn run_lite:app --host 0.0.0.0 --port ${PORT:-8000}; else exec uvicorn run:app --host 0.0.0.0 --port ${PORT:-8000}; fi"]
