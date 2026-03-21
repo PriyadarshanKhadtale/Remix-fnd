@@ -25,6 +25,9 @@ from transformers import AutoTokenizer
 
 from features.text_analysis_1.domain_adversarial import DomainAdversarialClassifier  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from device_util import device_pretty, resolve_device  # noqa: E402
+
 
 def _load_rows(path: Path, max_samples: int | None) -> list:
     with open(path, "r", encoding="utf-8") as f:
@@ -134,7 +137,12 @@ def main():
     ap.add_argument("--batch_size", type=int, default=16)
     ap.add_argument("--lr", type=float, default=2e-5)
     ap.add_argument("--lambda_domain", type=float, default=0.1)
-    ap.add_argument("--device", type=str, default="cpu")
+    ap.add_argument(
+        "--device",
+        type=str,
+        default="cpu",
+        help="cpu | cuda | mps | auto",
+    )
     ap.add_argument(
         "--max_samples",
         type=int,
@@ -146,7 +154,8 @@ def main():
     data_dir = Path(args.data_dir)
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    device = torch.device(args.device)
+    device = resolve_device(args.device)
+    print(f"Device: {device_pretty(device)}")
 
     train_p = data_dir / "train.json"
     val_p = data_dir / "val.json"

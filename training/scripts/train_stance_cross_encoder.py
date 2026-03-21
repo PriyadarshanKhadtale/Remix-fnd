@@ -22,6 +22,9 @@ from torch.utils.data import Dataset, DataLoader
 from tqdm import tqdm
 from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from device_util import device_pretty, resolve_device  # noqa: E402
+
 
 def liar_label_to_stance(label: str) -> Optional[int]:
     label = label.strip().lower()
@@ -106,7 +109,12 @@ def main():
     ap.add_argument("--batch_size", type=int, default=16)
     ap.add_argument("--lr", type=float, default=2e-5)
     ap.add_argument("--model_name", type=str, default="distilroberta-base")
-    ap.add_argument("--device", type=str, default="cpu")
+    ap.add_argument(
+        "--device",
+        type=str,
+        default="cpu",
+        help="cpu | cuda | mps | auto",
+    )
     ap.add_argument(
         "--max_samples",
         type=int,
@@ -118,7 +126,8 @@ def main():
     liar_dir = Path(args.liar_dir) if args.liar_dir else find_liar_dir()
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    device = torch.device(args.device)
+    device = resolve_device(args.device)
+    print(f"Device: {device_pretty(device)}")
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     tsvs = [liar_dir / "train.tsv", liar_dir / "valid.tsv"]

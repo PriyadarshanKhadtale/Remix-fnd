@@ -28,7 +28,12 @@ def run(cmd: list[str]) -> None:
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--device", type=str, default="cpu")
+    ap.add_argument(
+        "--device",
+        type=str,
+        default="auto",
+        help="Passed to training scripts: auto | cuda | cpu | mps",
+    )
     ap.add_argument("--skip-domain", action="store_true", help="Train only baseline text model")
     ap.add_argument("--skip-stance", action="store_true")
     ap.add_argument("--epochs-text", type=int, default=3)
