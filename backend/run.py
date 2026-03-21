@@ -56,11 +56,22 @@ def to_serializable(obj):
     Convert numpy / odd scalars so FastAPI's jsonable_encoder can build JSON.
     (jsonable_encoder does not accept np.bool_/np.generic; causes 500 on /detect with ai_analysis.)
     """
+    import math
+    from enum import Enum
+
     import numpy as np
     if isinstance(obj, dict):
         return {k: to_serializable(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
         return [to_serializable(v) for v in obj]
+    if isinstance(obj, set):
+        return [to_serializable(v) for v in obj]
+    if isinstance(obj, Enum):
+        return obj.value
+    if isinstance(obj, Path):
+        return str(obj)
+    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
     if isinstance(obj, np.ndarray):
         return obj.tolist()
     # All numpy scalar types (bool_, int32, float64, numpy.bool on NumPy 2.x, etc.)

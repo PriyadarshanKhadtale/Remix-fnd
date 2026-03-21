@@ -11,12 +11,25 @@
  */
 export function getApiBase() {
   const env = import.meta.env.VITE_API_BASE
-  if (env) return env.replace(/\/$/, '')
+  if (env) {
+    let b = String(env).trim().replace(/\/+$/, '')
+    b = b.replace(/\/api$/i, '')
+    if (import.meta.env.DEV && !/^https?:\/\//i.test(b)) {
+      console.warn(
+        '[REMIX-FND] VITE_API_BASE should be a full URL (e.g. https://remix-fnd.onrender.com).'
+      )
+    }
+    return b
+  }
   if (import.meta.env.DEV) return '/api'
   return 'http://127.0.0.1:8000'
 }
 
 const API_BASE = getApiBase()
+
+if (import.meta.env.DEV) {
+  console.info('[REMIX-FND] API_BASE =', API_BASE)
+}
 
 /** Short label for footer (hide long URLs) */
 export function getApiBaseLabel() {

@@ -17,7 +17,7 @@ os.chdir(repo_root)
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional
 
 # ============================================
@@ -30,11 +30,17 @@ APP_VERSION = "3.0.0-lite"
 # Request/Response Models
 # ============================================
 class DetectionRequest(BaseModel):
+    """Full UI sends extra fields (check_ai_generated, etc.); ignore them in lite."""
+
+    model_config = ConfigDict(extra="ignore")
+
     text: str
     include_explanation: bool = False
     explanation_level: str = "intermediate"
 
 class ExplainRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     text: str
     level: str = "intermediate"
 
