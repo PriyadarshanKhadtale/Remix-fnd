@@ -305,9 +305,8 @@ npm run dev
 The [Dockerfile](./Dockerfile) defaults to **lite** mode on Render (`RENDER=true`) so small instances stay up. **Full** PyTorch API: set `REMIX_FULL_STACK=1` and use enough RAM (about 2GB+).
 
 1. Deploy the repo on Render (Web Service, root `Dockerfile`, context `.`).
-2. In `frontend`, copy `frontend/.env.example` to `.env.local` and set:
-   `VITE_API_BASE=https://remix-fnd.onrender.com` (hosted **lite** API; no trailing slash)
-3. `cd frontend && npm install && npm run dev` — open the Vite URL; **Fake News Detection** works on lite; **AI** / **Fact Check** tabs need the full backend locally or `REMIX_FULL_STACK` on Render.
+2. `cd frontend && npm install && npm run dev` — **`frontend/.env.development`** already points at `https://remix-fnd.onrender.com`, so health/detect hit Render (not `localhost:3000/api`). For a **local** backend on :8000, add **`frontend/.env.development.local`** with `VITE_USE_LOCAL_API=1`.
+3. **Fake News Detection** works on hosted lite; **AI** / **Fact Check** need the full backend locally or `REMIX_FULL_STACK` on Render.
 
 ---
 

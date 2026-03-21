@@ -6,10 +6,18 @@
  */
 
 /**
- * In `npm run dev`, default is same-origin `/api` so Vite proxies to http://127.0.0.1:8000.
- * To call a remote API instead: VITE_API_BASE=https://remix-fnd.onrender.com (no trailing slash).
+ * Dev: `frontend/.env.development` sets VITE_API_BASE → hosted API by default.
+ * Local backend: add `.env.development.local` with VITE_USE_LOCAL_API=1 → uses `/api` proxy → :8000.
  */
 export function getApiBase() {
+  if (
+    import.meta.env.DEV &&
+    (import.meta.env.VITE_USE_LOCAL_API === '1' ||
+      import.meta.env.VITE_USE_LOCAL_API === 'true')
+  ) {
+    return '/api'
+  }
+
   const env = import.meta.env.VITE_API_BASE
   if (env) {
     let b = String(env).trim().replace(/\/+$/, '')
