@@ -68,6 +68,12 @@ def to_serializable(obj):
         return obj.item()
     if isinstance(obj, (bytes, bytearray)):
         return obj.decode("utf-8", errors="replace")
+    try:
+        import torch
+        if isinstance(obj, torch.Tensor):
+            return obj.detach().cpu().tolist()
+    except ImportError:
+        pass
     return obj
 
 

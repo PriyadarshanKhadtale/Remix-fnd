@@ -25,7 +25,9 @@ function ExplanationPanel({ explanation }) {
             <div className="explanation-section features-section">
               <h4>🧠 Analysis Methods Used</h4>
               <div className="features-grid">
-                {explanation.features_used.map((feature, index) => (
+                {explanation.features_used.map((feature, index) => {
+                  const score = Number(feature?.score ?? 0)
+                  return (
                   <div 
                     key={index} 
                     className={`feature-card ${feature.status === 'primary' ? 'primary' : ''}`}
@@ -41,18 +43,19 @@ function ExplanationPanel({ explanation }) {
                       <div className="feature-score-bar">
                         <div 
                           className="feature-score-fill"
-                          style={{ width: `${Math.min(feature.score, 100)}%` }}
+                          style={{ width: `${Math.min(score, 100)}%` }}
                         ></div>
                       </div>
                       <span className="feature-score-value">
-                        {feature.score.toFixed(0)}%
+                        {Number.isFinite(score) ? score.toFixed(0) : '0'}%
                       </span>
                     </div>
                     {feature.details && (
                       <span className="feature-details">{feature.details}</span>
                     )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           )}

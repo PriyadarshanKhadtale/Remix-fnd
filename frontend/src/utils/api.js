@@ -86,12 +86,26 @@ export function normalizeDetectResponse(data) {
 
 async function readErrorDetail(response) {
   try {
-    const j = await response.json()
-    if (j?.detail) return typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail)
+    const t = await response.text()
+    if (!t) return response.statusText || `HTTP ${response.status}`
+    try {
+      const j = JSON.parse(t)
+      if (j?.detail) return typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail)
+      if (typeof j?.message === 'string') return j.message
+    } catch {
+      if (t.length < 500) return t.trim()
+    }
   } catch {
     /* ignore */
   }
   return response.statusText || `HTTP ${response.status}`
+}
+
+function backendHintForStatus(status) {
+  if (status === 502 || status === 503 || status === 504) {
+    return ' Is the API running on port 8000? From repo root: cd backend && python3 run.py'
+  }
+  return ''
 }
 
 /**
@@ -129,17 +143,39 @@ export async function detectFakeNews(text, options = {}) {
     body.image_base64 = imageBase64
   }
 
-  const response = await fetch(`${API_BASE}/detect`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  })
-
-  if (!response.ok) {
-    throw new Error(`Detection failed: ${await readErrorDetail(response)}`)
+  let response
+  try {
+    response = await fetch(`${API_BASE}/detect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+  } catch (e) {
+    const base = getApiBase()
+    const proxyHint =
+      base === '/api'
+        ? ' Vite proxies /api → http://127.0.0.1:8000 — start the backend first.'
+        : ''
+    throw new Error((e?.message || 'Network error') + proxyHint)
   }
 
-  return normalizeDetectResponse(await response.json())
+  if (!response.ok) {
+    const detail = await readErrorDetail(response)
+    throw new Error(
+      `Detection failed (${response.status}): ${detail}.${backendHintForStatus(response.status)}`
+    )
+  }
+
+  const raw = await response.text()
+  let parsed
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error(
+      'Invalid JSON from /detect. If you use npm run dev, ensure the backend is up on port 8000 (502 pages are HTML).'
+    )
+  }
+  return normalizeDetectResponse(parsed)
 }
 
 /**
