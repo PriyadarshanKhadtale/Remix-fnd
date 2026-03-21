@@ -1,0 +1,104 @@
+# Architecture
+
+## System Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        REMIX-FND System                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  ┌──────────────┐         ┌──────────────────────────────────┐  │
+│  │   Frontend   │  HTTP   │           Backend API            │  │
+│  │   (React)    │ ◄─────► │           (FastAPI)              │  │
+│  └──────────────┘         └──────────────────────────────────┘  │
+│                                        │                         │
+│                           ┌────────────┴────────────┐           │
+│                           ▼                         ▼           │
+│                    ┌─────────────┐          ┌─────────────┐     │
+│                    │   Routes    │          │   Config    │     │
+│                    └─────────────┘          └─────────────┘     │
+│                           │                                      │
+│            ┌──────────────┼──────────────┬──────────────┐       │
+│            ▼              ▼              ▼              ▼       │
+│     ┌───────────┐  ┌───────────┐  ┌───────────┐  ┌───────────┐ │
+│     │   Text    │  │   Image   │  │ Evidence  │  │    AI     │ │
+│     │ Analysis  │  │ Analysis  │  │ Retrieval │  │ Detection │ │
+│     │  (1)      │  │  (2)      │  │   (3)     │  │   (4)     │ │
+│     └─────┬─────┘  └───────────┘  └───────────┘  └───────────┘ │
+│           │                                                      │
+│           ▼                                                      │
+│     ┌───────────┐                                               │
+│     │ Explain-  │                                               │
+│     │ ability(5)│                                               │
+│     └───────────┘                                               │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+## Feature Modules
+
+### 1. Text Analysis (✅ Complete)
+- **Purpose**: Analyze text content for fake news patterns
+- **Model**: DistilRoBERTa fine-tuned on FakeNewsNet
+- **Accuracy**: ~86%
+
+### 2. Image Analysis (🚧 Planned)
+- **Purpose**: Detect manipulated/fake images
+- **Approach**: CNN + forensic analysis
+
+### 3. Evidence Retrieval (🚧 Planned)
+- **Purpose**: RAG-based fact-checking
+- **Approach**: Semantic search + knowledge base
+
+### 4. AI Detection (🚧 Planned)
+- **Purpose**: Detect AI-generated content
+- **Approach**: Perplexity + trained classifier
+
+### 5. Explainability (✅ Basic)
+- **Purpose**: Explain why content is fake/real
+- **Approach**: Pattern matching + attention analysis
+
+## Data Flow
+
+```
+User Input
+    │
+    ▼
+┌─────────────────┐
+│   /detect API   │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐     ┌─────────────────┐
+│ Text Preprocess │────►│  RoBERTa Model  │
+└─────────────────┘     └────────┬────────┘
+                                 │
+                                 ▼
+                        ┌─────────────────┐
+                        │   Classifier    │
+                        └────────┬────────┘
+                                 │
+         ┌───────────────────────┼───────────────────────┐
+         ▼                       ▼                       ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Prediction    │     │  Explainability │     │  AI Detection   │
+│  (FAKE/REAL)    │     │   (Optional)    │     │   (Optional)    │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+         │                       │                       │
+         └───────────────────────┼───────────────────────┘
+                                 ▼
+                        ┌─────────────────┐
+                        │  JSON Response  │
+                        └─────────────────┘
+```
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|------------|
+| Frontend | React, Vite, CSS |
+| Backend | FastAPI, Pydantic |
+| ML | PyTorch, Transformers |
+| Data | JSON, pandas |
+| Deployment | Docker, uvicorn |
+

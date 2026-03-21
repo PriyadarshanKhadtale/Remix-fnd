@@ -1,0 +1,15 @@
+{
+  "total_samples": 21677,
+  "train_samples": 15173,
+  "val_samples": 3251,
+  "test_samples": 3253,
+  "source": "FakeNewsNet (titles only)",
+  "domains": [
+    "gossipcop",
+    "politifact"
+  ],
+  "labels": {
+    "0": "real",
+    "1": "fake"
+  }
+}

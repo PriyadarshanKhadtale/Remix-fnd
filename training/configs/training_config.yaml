@@ -1,0 +1,50 @@
+# Training Configuration
+# ======================
+
+# Model Settings
+model:
+  name: "distilroberta-base"
+  num_classes: 2
+  dropout: 0.1
+
+# Training Hyperparameters
+training:
+  epochs: 5
+  batch_size: 32
+  learning_rate: 2e-5
+  weight_decay: 0.01
+  warmup_steps: 500
+  max_grad_norm: 1.0
+
+# Data Settings
+data:
+  max_length: 128
+  train_split: 0.7
+  val_split: 0.15
+  test_split: 0.15
+
+# Device
+device: "cpu"  # cpu, cuda, mps
+
+# Logging
+logging:
+  log_every: 100
+  eval_every: 500
+  save_every: 1000
+
+# Output
+output:
+  dir: "../../models/text_classifier"
+  save_best: true
+  save_last: true
+
+# Scripts (run from repository root)
+pipelines:
+  quick_demo_cpu: "python training/scripts/quick_demo_cpu.py"
+  orchestrate: "python training/scripts/orchestrate.py --device cpu"
+  orchestrate_quick: "python training/scripts/orchestrate.py --quick-demo"
+  text_baseline: "python training/scripts/train_text_model.py --data_dir data/processed/fakenewsnet --output_dir models/text_classifier"
+  domain_adversarial: "python training/scripts/train_domain_adversarial.py --data_dir data/processed/fakenewsnet --output_dir models/text_classifier"
+  stance_cross_encoder: "python training/scripts/train_stance_cross_encoder.py --output_dir models/stance_cross_encoder"
+  evaluate_veracity: "python training/scripts/evaluate.py --model_path models/text_classifier/best_model.pt --test_data data/processed/fakenewsnet/test.json"
+
