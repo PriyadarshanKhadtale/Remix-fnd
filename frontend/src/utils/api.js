@@ -1,11 +1,13 @@
 /**
  * API utilities for REMIX-FND backend
  * Updated to match backend v3.0 API
+ *
+ * Hosted example (lite): https://remix-fnd.onrender.com — set VITE_API_BASE to use from local `npm run dev`.
  */
 
 /**
- * In `npm run dev`, use same-origin `/api` so Vite proxies to the backend (avoids CORS / localhost issues).
- * Production / preview: full URL. Override anytime: VITE_API_BASE=https://api.example.com npm run build
+ * In `npm run dev`, default is same-origin `/api` so Vite proxies to http://127.0.0.1:8000.
+ * To call a remote API instead: VITE_API_BASE=https://remix-fnd.onrender.com (no trailing slash).
  */
 export function getApiBase() {
   const env = import.meta.env.VITE_API_BASE

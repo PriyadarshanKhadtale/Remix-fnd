@@ -306,7 +306,7 @@ The [Dockerfile](./Dockerfile) defaults to **lite** mode on Render (`RENDER=true
 
 1. Deploy the repo on Render (Web Service, root `Dockerfile`, context `.`).
 2. In `frontend`, copy `frontend/.env.example` to `.env.local` and set:
-   `VITE_API_BASE=https://your-service.onrender.com`
+   `VITE_API_BASE=https://remix-fnd.onrender.com` (hosted **lite** API; no trailing slash)
 3. `cd frontend && npm install && npm run dev` — open the Vite URL; **Fake News Detection** works on lite; **AI** / **Fact Check** tabs need the full backend locally or `REMIX_FULL_STACK` on Render.
 
 ---
