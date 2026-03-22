@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"name": "my projects",
+			"path": "../../../../.."
+		},
+		{
+			"name": "benchmark_bundle",
+			"path": "../../../../../../../Downloads/benchmark_bundle"
+		}
+	],
+	"settings": {}
+}

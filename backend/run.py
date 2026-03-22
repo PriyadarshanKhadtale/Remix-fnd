@@ -50,6 +50,7 @@ from features.routing.mc_uncertainty import (
     confidence_from_means,
 )
 from features.text_analysis_1.domain_adversarial import DomainAdversarialClassifier
+from features.multimodal_fusion.fusion import fuse_detection_signals, get_multimodal_fusion
 
 def to_serializable(obj):
     """
@@ -138,13 +139,14 @@ def load_veracity_checkpoint():
         return m, {}
     checkpoint = torch.load(MODEL_PATH, map_location="cpu")
     sd = checkpoint.get("model_state_dict", checkpoint)
-    if checkpoint.get("model_type") == "domain_adversarial" or any(
+    if checkpoint.get("model_type") in ("domain_adversarial", "diml") or any(
         k.startswith("veracity.") for k in sd
     ):
         nd = int(checkpoint.get("num_domains", 2))
         m = DomainAdversarialClassifier(num_domains=nd)
         m.load_state_dict(sd, strict=True)
-        print(f"  ✓ Veracity model: domain-adversarial ({nd} domains)")
+        tag = "DIML" if checkpoint.get("model_type") == "diml" else "domain-adversarial"
+        print(f"  ✓ Veracity model: {tag} ({nd} domains)")
         return m, checkpoint
     m = TextClassifier()
     m.load_state_dict(sd, strict=False)
@@ -155,6 +157,20 @@ def load_veracity_checkpoint():
 # ============================================
 # Request/Response Models
 # ============================================
+class SocialSignals(BaseModel):
+    """Optional social engagement features for multi-modal fusion."""
+    likes: Optional[float] = None
+    shares: Optional[float] = None
+    comments: Optional[float] = None
+    account_verified: Optional[bool] = None
+
+
+def _social_signals_nonempty(s: Optional[SocialSignals]) -> bool:
+    if s is None:
+        return False
+    return any(v is not None for v in (s.likes, s.shares, s.comments, s.account_verified))
+
+
 class DetectionRequest(BaseModel):
     text: str
     include_explanation: bool = False
@@ -167,6 +183,10 @@ class DetectionRequest(BaseModel):
     mc_dropout_passes: int = 0
     # When MC is on, skip evidence if decisive probability is high and uncertainty low
     use_evidence_fast_path: bool = True
+    social_signals: Optional[SocialSignals] = None
+    published_at_iso: Optional[str] = None
+    use_multimodal_fusion: bool = True
+    use_dsrg: bool = True
 
 
 class ExplainRequest(BaseModel):
@@ -179,6 +199,7 @@ class EvidenceRequest(BaseModel):
     max_results: int = 10
     uncertainty: float = 0.5
     depth_override: Optional[int] = None  # 5–20; Table 1 style when set
+    use_dsrg: bool = True
 
 
 class AIDetectRequest(BaseModel):
@@ -390,6 +411,11 @@ def health():
             "explanation_tiers": 3,
             "veracity_model": veracity_kind,
             "stance_checkpoint": stance_ckpt,
+            "dsrg_evidence": bool(
+                evidence_retriever
+                and getattr(evidence_retriever, "_dsrg", None) is not None
+            ),
+            "multimodal_fusion_api": True,
         },
     }
 
@@ -411,11 +437,18 @@ def detect(request: DetectionRequest):
 
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
+
+    has_multimodal = bool(
+        request.image_base64
+        or _social_signals_nonempty(request.social_signals)
+        or (request.published_at_iso and str(request.published_at_iso).strip())
+    )
     
     start_time = time.time()
     processing_stages = []
     feature_scores = {}
     routing_info: Dict[str, Any] = {}
+    text_cls_cpu: Optional[torch.Tensor] = None
     
     # ========================================
     # Stage 1: Text Classification
@@ -453,6 +486,12 @@ def detect(request: DetectionRequest):
             "variance_decisive_probability": mc["var_decisive"],
             "table1_depth_if_evidence": table1_depth_from_fake_variance(mc["var_fake"]),
         }
+        dev = next(model.parameters()).device
+        with torch.no_grad():
+            ids = encoding["input_ids"].to(dev)
+            am = encoding["attention_mask"].to(dev)
+            enc_out = model.encoder(input_ids=ids, attention_mask=am)
+            text_cls_cpu = enc_out.last_hidden_state[:, 0, :].detach().cpu()
     except Exception as e:
         print(f"⚠️ Model inference error: {e}")
         # Fallback to simple heuristics
@@ -477,8 +516,12 @@ def detect(request: DetectionRequest):
         "confidence": confidence
     })
     
-    # Check for early exit
-    if request.enable_early_exit and confidence >= EARLY_EXIT_THRESHOLD * 100:
+    # Check for early exit (defer if multi-modal inputs need image / fusion stages)
+    if (
+        request.enable_early_exit
+        and not has_multimodal
+        and confidence >= EARLY_EXIT_THRESHOLD * 100
+    ):
         result = {
             "prediction": prediction,
             "confidence": confidence,
@@ -512,9 +555,9 @@ def detect(request: DetectionRequest):
             )
             feature_scores["image_analysis"] = 100 - image_result.manipulation_score
             
-            # Adjust confidence based on image analysis
-            if image_result.manipulation_score > 50:
-                # High manipulation = less trustworthy
+            # Legacy heuristic (skipped when attention fusion handles modalities)
+            apply_img_heuristic = not (request.use_multimodal_fusion and has_multimodal)
+            if apply_img_heuristic and image_result.manipulation_score > 50:
                 if prediction == "REAL":
                     confidence = confidence * 0.8
             
@@ -525,6 +568,40 @@ def detect(request: DetectionRequest):
             })
         except Exception as e:
             print(f"Image analysis failed: {e}")
+
+    # Multi-modal attention fusion (text CLS + image / social / temporal hints)
+    if (
+        request.use_multimodal_fusion
+        and text_cls_cpu is not None
+        and "fallback" not in routing_info
+        and has_multimodal
+    ):
+        try:
+            man = image_result.manipulation_score if image_result else None
+            cons = image_result.consistency_score if image_result else None
+            soc_dict = None
+            if request.social_signals is not None:
+                sd = request.social_signals.model_dump(exclude_none=True)
+                soc_dict = sd if sd else None
+            fus = get_multimodal_fusion(device="cpu")
+            fused_fake, fusion_dbg = fuse_detection_signals(
+                fus,
+                text_cls_cpu,
+                float(fake_prob),
+                man,
+                cons,
+                soc_dict,
+                request.published_at_iso,
+                torch.device("cpu"),
+            )
+            fake_prob = fused_fake
+            real_prob = 100.0 - fake_prob
+            prediction = "FAKE" if fake_prob >= real_prob else "REAL"
+            confidence = max(fake_prob, real_prob)
+            feature_scores["text_analysis"] = confidence
+            routing_info["multimodal_fusion"] = fusion_dbg
+        except Exception as e:
+            print(f"⚠️ Multi-modal fusion skipped: {e}")
     
     # ========================================
     # Stage 3: AI Content Detection
@@ -597,6 +674,7 @@ def detect(request: DetectionRequest):
                 max_results=linear_depth,
                 uncertainty=uncertainty,
                 depth_override=depth_override,
+                use_dsrg=request.use_dsrg,
             )
             feature_scores["evidence_retrieval"] = evidence_result["confidence"]
             routing_info["evidence_fast_path"] = False
@@ -741,6 +819,7 @@ def evidence(request: EvidenceRequest):
             max_results=request.max_results,
             uncertainty=request.uncertainty,
             depth_override=request.depth_override,
+            use_dsrg=request.use_dsrg,
         )
     )
 

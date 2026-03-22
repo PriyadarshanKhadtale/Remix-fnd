@@ -1,11 +1,12 @@
 """
-Run training scripts in order: veracity (optional DANN) → stance cross-encoder.
+Run training scripts in order: veracity (optional DANN or DIML) → stance cross-encoder.
 
 Usage (from repo root):
   python3 training/scripts/quick_demo_cpu.py
   python3 training/scripts/orchestrate.py --quick-demo
   python3 training/scripts/orchestrate.py --device cpu
   python3 training/scripts/orchestrate.py --skip-domain --device cuda
+  python3 training/scripts/orchestrate.py --diml --device cuda
 """
 
 from __future__ import annotations
@@ -35,9 +36,15 @@ def main():
         help="Passed to training scripts: auto | cuda | cpu | mps",
     )
     ap.add_argument("--skip-domain", action="store_true", help="Train only baseline text model")
+    ap.add_argument(
+        "--diml",
+        action="store_true",
+        help="Train DIML (DANN + episodic MAML on heads) instead of DANN-only",
+    )
     ap.add_argument("--skip-stance", action="store_true")
     ap.add_argument("--epochs-text", type=int, default=3)
     ap.add_argument("--epochs-domain", type=int, default=2)
+    ap.add_argument("--epochs-diml", type=int, default=None, help="Epochs for DIML (default: epochs-domain)")
     ap.add_argument("--epochs-stance", type=int, default=2)
     ap.add_argument(
         "--quick-demo",
@@ -95,15 +102,17 @@ def main():
             )
         run(cmd_t)
     else:
+        ep_dom = args.epochs_diml if args.epochs_diml is not None else args.epochs_domain
+        script = "train_diml.py" if args.diml else "train_domain_adversarial.py"
         cmd_d = [
             py,
-            str(SCRIPTS / "train_domain_adversarial.py"),
+            str(SCRIPTS / script),
             "--data_dir",
             str(data_dir),
             "--output_dir",
             str(out_text),
             "--epochs",
-            str(args.epochs_domain),
+            str(ep_dom),
             "--device",
             args.device,
         ]
@@ -111,6 +120,19 @@ def main():
             cmd_d.extend(
                 ["--max_samples", str(demo_n), "--batch_size", str(demo_batch)]
             )
+            if args.diml:
+                cmd_d.extend(
+                    [
+                        "--tasks_per_step",
+                        "1",
+                        "--support_n",
+                        "4",
+                        "--query_n",
+                        "4",
+                        "--inner_steps",
+                        "2",
+                    ]
+                )
         run(cmd_d)
 
     if not args.skip_stance:

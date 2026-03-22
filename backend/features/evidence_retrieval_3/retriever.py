@@ -469,6 +469,7 @@ class EvidenceRetriever:
     - Hybrid retrieval (semantic + keyword)
     - Hierarchical claim verification
     - Stance classification
+    - DSRG-style source reliability re-weighting (graph diffusion over KB sources)
     """
     
     def __init__(self):
@@ -479,6 +480,14 @@ class EvidenceRetriever:
             "true",
             "yes",
         )
+        self._dsrg = None
+        if os.environ.get("REMIX_DISABLE_DSRG", "").lower() not in ("1", "true", "yes"):
+            try:
+                from .dsrg import build_dsrg_from_kb_facts
+
+                self._dsrg = build_dsrg_from_kb_facts(self.kb.facts)
+            except Exception as e:
+                print(f"  ⚠️ DSRG init skipped: {e}")
     
     def retrieve(
         self, 
@@ -486,6 +495,7 @@ class EvidenceRetriever:
         max_results: int = 5,
         uncertainty: float = 0.5,  # From Module 1
         depth_override: Optional[int] = None,
+        use_dsrg: bool = True,
     ) -> Dict[str, Any]:
         """
         Retrieve evidence with uncertainty-based depth control.
@@ -514,12 +524,16 @@ class EvidenceRetriever:
             stance = self._classify_stance(text, r)
             supports = stance == "supports"
             contradicts = stance == "refutes"
+            rel = float(r.get("relevance_score", 0) or 0.0)
+            src = r.get("source", "Unknown")
+            if use_dsrg and self._dsrg is not None:
+                rel = self._dsrg.boost_score(rel, str(src))
             
             evidence.append(EvidenceItem(
-                source=r.get("source", "Unknown"),
+                source=src,
                 title=r.get("title", ""),
                 snippet=r.get("content", "")[:300] + "..." if len(r.get("content", "")) > 300 else r.get("content", ""),
-                relevance_score=r.get("relevance_score", 0),
+                relevance_score=rel,
                 supports_claim=True if supports else (False if contradicts else None),
                 category=r.get("category"),
                 stance=stance
@@ -541,6 +555,7 @@ class EvidenceRetriever:
             "claim_keywords": claims,
             "retrieval_depth": int(adaptive_depth),
             "search_method": "hybrid (semantic + keyword)" if self.use_semantic else "keyword",
+            "dsrg_enabled": bool(use_dsrg and self._dsrg is not None),
             "evidence": [
                 {
                     "source": str(e.source),
@@ -549,7 +564,12 @@ class EvidenceRetriever:
                     "relevance_score": float(e.relevance_score) if e.relevance_score else 0.0,
                     "supports_claim": bool(e.supports_claim) if e.supports_claim is not None else None,
                     "category": str(e.category) if e.category else None,
-                    "stance": str(e.stance) if e.stance else None
+                    "stance": str(e.stance) if e.stance else None,
+                    **(
+                        {"dsrg_reliability": float(self._dsrg.reliability(str(e.source)))}
+                        if (use_dsrg and self._dsrg is not None)
+                        else {}
+                    ),
                 }
                 for e in evidence
             ],

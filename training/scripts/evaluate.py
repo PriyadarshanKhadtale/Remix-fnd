@@ -31,7 +31,9 @@ from train_text_model import NewsDataset, TextClassifier  # noqa: E402
 def load_model(model_path: Path, device: torch.device):
     ckpt = torch.load(model_path, map_location=device)
     sd = ckpt.get("model_state_dict", ckpt)
-    if ckpt.get("model_type") == "domain_adversarial" or any(k.startswith("veracity.") for k in sd):
+    if ckpt.get("model_type") in ("domain_adversarial", "diml") or any(
+        k.startswith("veracity.") for k in sd
+    ):
         nd = int(ckpt.get("num_domains", 2))
         m = DomainAdversarialClassifier(num_domains=nd)
         m.load_state_dict(sd, strict=True)
