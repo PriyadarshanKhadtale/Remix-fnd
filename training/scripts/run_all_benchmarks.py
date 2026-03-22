@@ -3,16 +3,25 @@
 Run all automated benchmarks in the repo (train + eval where applicable).
 
 Outputs under --run_dir (default: benchmark_runs/<UTC timestamp>):
-  manifest.json           — master index + paper-scope gaps
-  veracity_baseline.*     — train + sklearn metrics JSON
-  veracity_dann.*         — domain-adversarial train + test metrics
-  stance_train.log        — captured stdout tail reference (optional)
-  stance_liar_test.json   — stance model on LIAR test.tsv
-  ai_ensemble_micro.json  — fixed-string AI detector smoke
-  veracity_latency.json   — single-forward timing (text encoder only)
+  manifest.json              — master index + paper-scope gaps
+  veracity_baseline.*        — train + sklearn metrics JSON
+  veracity_dann.* (or diml)  — domain-adversarial or DIML train + test metrics
+  stance_liar_test.json      — stance model on LIAR test.tsv
+  ai_ensemble_micro.json     — fixed-string AI detector smoke
+  veracity_latency.json      — single-forward timing (text encoder only)
+  ood_domains.json           — per-domain + overall macro F1 (evaluate_ood_domains.py)
+  paper_components_probe.json — MC dropout, DSRG, multimodal fusion (offline probes)
 
-Colab: prints manifest at end; all JSON is on disk for download.
-Stdout/stderr from subprocesses appear in the notebook cell (Colab logs them).
+One command (full):
+  python3 training/scripts/run_all_benchmarks.py --device auto
+
+Quick smoke:
+  python3 training/scripts/run_all_benchmarks.py --quick --device cpu
+
+Skip heavy pieces:
+  --skip_ood --skip_paper_components --skip_dann ...
+Use DIML instead of DANN for step 2:
+  --diml
 """
 
 from __future__ import annotations
@@ -94,6 +103,21 @@ def main() -> None:
     ap.add_argument("--skip_stance", action="store_true")
     ap.add_argument("--skip_ai_micro", action="store_true")
     ap.add_argument("--skip_latency", action="store_true")
+    ap.add_argument(
+        "--skip_ood",
+        action="store_true",
+        help="Skip evaluate_ood_domains.py (per-domain F1 on test.json)",
+    )
+    ap.add_argument(
+        "--skip_paper_components",
+        action="store_true",
+        help="Skip paper_components_probe.json (MC dropout, DSRG, multimodal offline)",
+    )
+    ap.add_argument(
+        "--diml",
+        action="store_true",
+        help="Train DIML (train_diml.py) instead of DANN for the domain-adversarial slot",
+    )
     args = ap.parse_args()
 
     py = sys.executable
@@ -116,7 +140,7 @@ def main() -> None:
     max_st_eval = 2000 if q else None
 
     out_baseline = run_dir / "baseline_veracity"
-    out_dann = run_dir / "dann_veracity"
+    out_dann = run_dir / ("diml_veracity" if args.diml else "dann_veracity")
     out_stance = run_dir / "stance"
     out_baseline.mkdir(parents=True, exist_ok=True)
     out_dann.mkdir(parents=True, exist_ok=True)
@@ -185,11 +209,13 @@ def main() -> None:
         )
         ok_all = False
 
-    # 2) DANN veracity
+    # 2) DANN or DIML veracity
     if not args.skip_dann:
+        train_script = "train_diml.py" if args.diml else "train_domain_adversarial.py"
+        step_train = "train_veracity_diml" if args.diml else "train_veracity_dann"
         cmd2 = [
             py,
-            str(SCRIPTS / "train_domain_adversarial.py"),
+            str(SCRIPTS / train_script),
             "--data_dir",
             str(data_fn),
             "--output_dir",
@@ -203,10 +229,24 @@ def main() -> None:
         ]
         if max_v:
             cmd2.extend(["--max_samples", str(max_v)])
-        if not run_step(manifest, "train_veracity_dann", cmd2, py):
+        if q and args.diml:
+            cmd2.extend(
+                [
+                    "--tasks_per_step",
+                    "1",
+                    "--support_n",
+                    "4",
+                    "--query_n",
+                    "4",
+                    "--inner_steps",
+                    "2",
+                ]
+            )
+        if not run_step(manifest, step_train, cmd2, py):
             ok_all = False
 
-        j2 = run_dir / "veracity_dann_eval.json"
+        j2 = run_dir / ("veracity_diml_eval.json" if args.diml else "veracity_dann_eval.json")
+        eval_step = "eval_veracity_diml" if args.diml else "eval_veracity_dann"
         cmd2e = [
             py,
             str(SCRIPTS / "evaluate.py"),
@@ -224,17 +264,17 @@ def main() -> None:
         if max_v:
             cmd2e.extend(["--max_samples", str(max_v)])
         if (out_dann / "best_model.pt").exists():
-            if run_step(manifest, "eval_veracity_dann", cmd2e, py):
+            if run_step(manifest, eval_step, cmd2e, py):
                 manifest["steps"][-1]["artifacts"].append(str(j2))
             else:
                 ok_all = False
         else:
             manifest["steps"].append(
-                {"name": "eval_veracity_dann", "ok": False, "skipped": "missing checkpoint"}
+                {"name": eval_step, "ok": False, "skipped": "missing checkpoint"}
             )
             ok_all = False
     else:
-        manifest["steps"].append({"name": "dann_pipeline", "ok": True, "skipped": True})
+        manifest["steps"].append({"name": "dann_or_diml_pipeline", "ok": True, "skipped": True})
 
     # 3) Stance
     if not args.skip_stance:
@@ -326,6 +366,69 @@ def main() -> None:
                 "name": "veracity_forward_latency",
                 "ok": True,
                 "skipped": args.skip_latency or not (out_baseline / "best_model.pt").exists(),
+            }
+        )
+
+    # 6) OOD / per-domain evaluation (baseline checkpoint = in-domain reference)
+    if not args.skip_ood and (out_baseline / "best_model.pt").exists():
+        j_ood = run_dir / "ood_domains.json"
+        cmd_ood = [
+            py,
+            str(SCRIPTS / "evaluate_ood_domains.py"),
+            "--model_path",
+            str(out_baseline / "best_model.pt"),
+            "--test_data",
+            str(test_json),
+            "--batch_size",
+            str(eb),
+            "--device",
+            args.device,
+            "--output_json",
+            str(j_ood),
+        ]
+        if max_v:
+            cmd_ood.extend(["--max_samples", str(max_v)])
+        if run_step(manifest, "eval_ood_domains", cmd_ood, py):
+            manifest["steps"][-1]["artifacts"].append(str(j_ood))
+        else:
+            ok_all = False
+    else:
+        manifest["steps"].append(
+            {
+                "name": "eval_ood_domains",
+                "ok": True,
+                "skipped": args.skip_ood or not (out_baseline / "best_model.pt").exists(),
+            }
+        )
+
+    # 7) MC dropout + DSRG + multimodal fusion (offline probes)
+    if not args.skip_paper_components and (out_baseline / "best_model.pt").exists():
+        j_pc = run_dir / "paper_components_probe.json"
+        cmd_pc = [
+            py,
+            str(SCRIPTS / "benchmark_paper_components.py"),
+            "--model_path",
+            str(out_baseline / "best_model.pt"),
+            "--device",
+            args.device,
+            "--output_json",
+            str(j_pc),
+        ]
+        if q:
+            cmd_pc.extend(["--mc_T", "5"])
+        else:
+            cmd_pc.extend(["--mc_T", "30"])
+        if run_step(manifest, "paper_components_probe", cmd_pc, py):
+            manifest["steps"][-1]["artifacts"].append(str(j_pc))
+        else:
+            ok_all = False
+    else:
+        manifest["steps"].append(
+            {
+                "name": "paper_components_probe",
+                "ok": True,
+                "skipped": args.skip_paper_components
+                or not (out_baseline / "best_model.pt").exists(),
             }
         )
 
