@@ -1,40 +1,26 @@
-# Evidence Retrieval Feature (RAG)
+# Evidence Retrieval (EVRS)
 
 ## Overview
 
-This feature uses Retrieval-Augmented Generation (RAG) to fact-check claims by retrieving relevant evidence from a knowledge base.
+Retrieval-augmented evidence for claims: **semantic search** (Sentence-Transformers + FAISS when available) with **keyword fallback**, stance-aware scoring, optional **DSRG** reliability propagation, and uncertainty-based retrieval depth.
 
-## Status: 🚧 Not Yet Implemented
+## Primary knowledge base
 
-## How It Works
+| Source | Role |
+|--------|------|
+| **LIAR** | Default — PolitiFact-scoped claims loaded into `ExpandedKnowledgeBase` in `retriever.py`. |
+| **Hand-crafted facts** | Small curated set bundled with the retriever for health/science examples. |
+
+## Optional / not default
+
+| Source | Role |
+|--------|------|
+| **FEVER** | `load_fever_dataset.py` only — not used by `EvidenceRetriever()` by default. |
+
+## Pipeline
 
 ```
-Claim Input → Embedding → Vector Search → Re-ranking → Evidence → Verdict
-                              ↓
-                      Knowledge Base (FAISS)
+Claim → embed or keyword match → FAISS / fallback → rank → stance + optional DSRG → verdict
 ```
 
-## Planned Features
-
-| Feature | Description |
-|---------|-------------|
-| Semantic Search | Find relevant facts using embeddings |
-| Source Verification | Check credibility of sources |
-| Contradiction Detection | Identify conflicting information |
-| Confidence Scoring | Rate how well evidence supports/refutes claim |
-
-## Knowledge Base Sources (Planned)
-
-- Wikipedia dumps
-- Fact-checking websites (Snopes, PolitiFact)
-- News archives
-- Official government data
-
-## Requirements to Implement
-
-1. Build knowledge base from trusted sources
-2. Create embeddings using sentence-transformers
-3. Build FAISS index for fast retrieval
-4. Implement re-ranking model
-5. Add verdict generation logic
-
+See repository root **`SCOPE.md`** for how `/detect` chooses MC-based depth (Table 1) vs softmax-linear **k** when `mc_dropout_passes=0`.

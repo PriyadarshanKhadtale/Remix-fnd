@@ -1,7 +1,9 @@
 """
 REMIX-FND Backend API
 =====================
-Main FastAPI application entry point.
+Modular FastAPI entry (`uvicorn app.main:app`). For the full detection pipeline
+(MC dropout routing, multimodal fusion, DSRG, image path), use `uvicorn run:app`
+from the same directory. See `SCOPE.md` at the repository root.
 """
 
 from fastapi import FastAPI
@@ -50,6 +52,7 @@ def root():
             "GET /health": "Health check",
             "GET /docs": "API documentation"
         },
+        "full_stack_note": "For paper-aligned /detect (MC depth, fusion, early exit), run uvicorn run:app — see SCOPE.md",
         "features": {
             "text_analysis": settings.ENABLE_TEXT_ANALYSIS,
             "image_analysis": settings.ENABLE_IMAGE_ANALYSIS,

@@ -25,6 +25,7 @@ sys.path.insert(0, str(backend_dir))
 # Local dev: models/ lives next to backend/. Docker/Render: both are under /app.
 repo_root = backend_dir if (backend_dir / "models").exists() else backend_dir.parent
 os.chdir(repo_root)
+load_env_files(backend_dir / ".env", repo_root / ".env", override=False)
 
 import core.torch_env  # noqa: F401 — sets OMP/MKL env before torch
 import torch
@@ -51,6 +52,7 @@ from features.routing.mc_uncertainty import (
 )
 from features.text_analysis_1.domain_adversarial import DomainAdversarialClassifier
 from features.multimodal_fusion.fusion import fuse_detection_signals, get_multimodal_fusion
+from core.veracity_checkpoint import load_env_files, resolve_veracity_model_path
 
 def to_serializable(obj):
     """
@@ -94,14 +96,8 @@ def to_serializable(obj):
 # ============================================
 APP_NAME = "REMIX-FND"
 APP_VERSION = "3.0.0"
-# Model path - works both in Docker and local
-MODEL_PATH = Path("/app/models/text_classifier/best_model.pt")
-if not MODEL_PATH.exists():
-    MODEL_PATH = Path("models/text_classifier/best_model.pt")
-if not MODEL_PATH.exists():
-    MODEL_PATH = Path("../models/text_classifier/best_model.pt")
-if os.environ.get("REMIX_VERACITY_CKPT"):
-    MODEL_PATH = Path(os.environ["REMIX_VERACITY_CKPT"])
+
+MODEL_PATH = resolve_veracity_model_path(repo_root)
 
 # Paper thresholds
 EARLY_EXIT_THRESHOLD = 0.90
@@ -221,7 +217,7 @@ app = FastAPI(
     
     Implements paper features:
     - Module 1 (MSCIM): Text + Image analysis with adaptive fusion
-    - Module 2 (EVRS): Evidence retrieval with FAISS + 100+ fact knowledge base
+    - Module 2 (EVRS): Evidence retrieval with FAISS + LIAR-derived knowledge base
     - Module 3 (ELDS): AI detection with 6-detector ensemble + hierarchical explanations
     - Early Exit: Confidence-based routing for efficiency
     """,
@@ -339,7 +335,7 @@ def root():
             },
             "EVRS": {
                 "description": "Evidence-Based Verification & Retrieval",
-                "components": ["FAISS Search", "100+ Facts KB", "Stance Classification"],
+                "components": ["FAISS Search", "LIAR-derived KB (~12.8K + hand facts)", "Stance / DSRG"],
                 "status": "active"
             },
             "ELDS": {
@@ -804,7 +800,7 @@ def evidence(request: EvidenceRequest):
     
     Features:
     - Semantic search (FAISS) + keyword search
-    - 100+ fact knowledge base
+    - LIAR-derived knowledge base (see SCOPE.md)
     - Stance classification (supports/refutes/neutral)
     - Uncertainty-based adaptive depth
     """

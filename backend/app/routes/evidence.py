@@ -50,7 +50,7 @@ async def retrieve_evidence(request: EvidenceRequest):
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
     
-    from ...features.evidence_retrieval_3 import retriever
+    from features.evidence_retrieval_3 import retriever
     
     result = retriever.retrieve(
         request.text,

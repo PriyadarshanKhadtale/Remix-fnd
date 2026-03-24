@@ -1,9 +1,9 @@
 """
 Knowledge Base Manager
 ======================
-Manages the facts database for evidence retrieval.
-
-Status: Placeholder - to be implemented
+Legacy minimal `KnowledgeBase` class. The **live** EVRS store is
+`ExpandedKnowledgeBase` in `retriever.py` (LIAR + hand-crafted facts, FAISS).
+Prefer importing from `retriever` for new code.
 """
 
 from typing import List, Dict, Any, Optional
@@ -12,13 +12,7 @@ from pathlib import Path
 
 class KnowledgeBase:
     """
-    Manages a database of facts for evidence retrieval.
-    
-    Features (planned):
-        - Load facts from JSON/CSV files
-        - Create embeddings for semantic search
-        - FAISS index for fast retrieval
-        - Update with new facts
+    Simple in-memory fact list (legacy). Production path uses ExpandedKnowledgeBase.
     """
     
     def __init__(self):

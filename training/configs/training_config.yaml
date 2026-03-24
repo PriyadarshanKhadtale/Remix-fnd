@@ -52,3 +52,7 @@ pipelines:
   run_all_benchmarks: "python training/scripts/run_all_benchmarks.py --device auto"
   run_all_benchmarks_quick: "python training/scripts/run_all_benchmarks.py --quick --device cpu"
 
+# Frozen Colab exports (metrics + optional local .pt) — see benchmarks/README.md
+benchmarks:
+  consolidated_dir: "benchmarks/runs"
+

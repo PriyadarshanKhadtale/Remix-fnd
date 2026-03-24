@@ -1,0 +1,32 @@
+{
+  "description": "Consolidated Colab benchmark exports for REMIX-FND_v2. Each run folder contains manifest.json plus eval JSON; .pt files may exist locally but are gitignored.",
+  "runs": [
+    {
+      "id": "20260321T191615Z",
+      "path": "runs/20260321T191615Z",
+      "domain_head": "DANN",
+      "notes": "5 epoch baseline, 3 epoch DANN. Weighted F1 ~85.47% DANN — matches manuscript Table 4 / B (primary veracity). No ood_domains / paper_components in this export.",
+      "colab_run_dir": "/content/Remix-fnd/benchmark_runs/20260321T191615Z"
+    },
+    {
+      "id": "20260322T135702Z_dann",
+      "path": "runs/20260322T135702Z_dann",
+      "domain_head": "DANN",
+      "notes": "3 epoch baseline, 2 epoch DANN. Includes ood_domains.json and paper_components_probe.json. Baseline differs from 20260321 (separate training).",
+      "colab_run_dir": "/content/Remix-fnd/benchmark_runs/20260322T135702Z"
+    },
+    {
+      "id": "20260322T135657Z_diml",
+      "path": "runs/20260322T135657Z_diml",
+      "domain_head": "DIML",
+      "notes": "3 epoch baseline, 2 epoch DIML (train_diml.py). Includes ood_domains.json and paper_components_probe.json. Started ~5s before 20260322T135702Z_dann on Colab.",
+      "colab_run_dir": "/content/Remix-fnd/benchmark_runs/20260322T135657Z"
+    }
+  ],
+  "duplicate_archives_outside_repo": [
+    "my projects/benchmark_bundle/",
+    "my projects/benchmark_bundle (1)/",
+    "my projects/benchmark_runs/",
+    "my projects/benchmark_runs 2/"
+  ]
+}

@@ -12,6 +12,7 @@
 ## 📋 Table of Contents
 
 - [Overview](#-overview)
+- [Scope and documentation](#scope-and-documentation)
 - [Features](#-features)
 - [Datasets Used](#-datasets-used)
 - [Techniques & Methods](#-techniques--methods)
@@ -30,7 +31,25 @@ REMIX-FND is a comprehensive fake news detection system implementing research pa
 - **Module 2 (EVRS)**: Evidence-Based Verification & Retrieval System  
 - **Module 3 (ELDS)**: Explainable LLM Detection & Defense
 
-**Implementation Status: ~70% of paper architecture**
+**Implementation:** Full reference stack is in **`backend/run.py`** (use this for manuscript-aligned `/detect`). The modular **`app.main`** app is a slimmer alternative; see below.
+
+---
+
+## Scope and documentation
+
+- **[SCOPE.md](SCOPE.md)** — canonical API entry points (`run.py` vs `app.main` vs `run_lite`), `/detect` stage order, **evidence depth** (default softmax-linear *k* vs **MC dropout** Table 1 when `mc_dropout_passes > 0`), **LIAR vs FEVER** KB, and route-to-module map (manuscript Table A / §2.6 alignment).
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — three-stage pipeline, module paths, env vars, benchmark run ids.
+
+### Paper-aligned runtime and checkpoints
+
+| Goal | What to run | Notes |
+|------|-------------|--------|
+| Full orchestration (MC option, DSRG, multimodal, early exit) | From `backend/`: `python run.py` or `uvicorn run:app` | Same as Docker full stack. |
+| Slim API only | `uvicorn app.main:app` | Feature flags in `backend/app/config.py`; not the full paper pipeline. |
+| Best **logged** in-domain veracity F1 on manuscript split (n = 3253) | **`REMIX_VERACITY_CKPT`** = path to **+DANN** `.pt`, **or** **`REMIX_VERACITY_RUN_ID=20260321T191615Z`** + **`REMIX_VERACITY_VARIANT=dann`** after copying `dann_veracity/best_model.pt` under `benchmarks/runs/20260321T191615Z/` | See [`benchmarks/index.json`](benchmarks/index.json); JSON is in-repo; `.pt` is often local/Colab only. |
+| Table 1–style evidence depth | `POST /detect` with **`check_evidence`: true** and **`mc_dropout_passes`: 30** | Default `mc_dropout_passes: 0` uses softmax *k* (5–20). Fast path: **`REMIX_MC_FAST_CONF`**, **`REMIX_MC_FAST_VAR`**. |
+| DIML checkpoint | Export **`20260322T135657Z_diml`** + `train_diml.py` | Manuscript: archived short schedule **below** +DANN F1 on that split; tune epochs/λ if you need DIML to catch up. |
+| Domain subset diagnostics | `training/scripts/evaluate_ood_domains.py` | Use the **same** checkpoint as the benchmark row you cite; Table 5 subset used **baseline** from **`20260322T135702Z_dann`**, not +DANN headline weights. |
 
 ---
 
@@ -40,7 +59,7 @@ REMIX-FND is a comprehensive fake news detection system implementing research pa
 |---------|--------|-------------|
 | **Text Classification** | ✅ Complete | DistilRoBERTa-based fake news detection (85.2% accuracy) |
 | **Evidence Retrieval (RAG)** | ✅ Complete | FAISS + 12.8K fact-checked claims from LIAR dataset |
-| **AI Content Detection** | ✅ Complete | 5-detector ensemble (perplexity, burstiness, linguistic) |
+| **AI Content Detection** | ✅ Complete | 6-detector ensemble (perplexity, burstiness, linguistic patterns, repetition, vocabulary, HC3 retrieval similarity) |
 | **Image Analysis** | ✅ Complete | Manipulation detection, metadata analysis |
 | **3-Tier Explanations** | ✅ Complete | Novice, Intermediate, Expert levels |
 | **Sentence Attribution** | ✅ Complete | Per-sentence contribution scores |
@@ -169,17 +188,18 @@ Query → Generate Embedding
 | **Linguistic** | Regex pattern matching | AI-specific phrases |
 | **Repetition** | N-gram analysis | Phrase repetition |
 | **Vocabulary** | TTR, hapax legomena | Vocabulary richness |
+| **HC3 similarity** | Trigram Jaccard vs bundled reference strings | Corpus overlap signal |
 
 ```python
-# Ensemble Voting
-Final Score = Σ (detector_score × weight) / Σ weights
+# Ensemble (AIContentDetector): weighted average in [0, 1]; binary AI/human at 0.55
 
-Weights:
-- Perplexity: 0.25
-- Burstiness: 0.20
-- Linguistic: 0.20
-- Repetition: 0.15
-- Vocabulary: 0.20
+Weights (manuscript Table 2; sum = 1.0):
+- Perplexity: 0.22
+- Burstiness: 0.18
+- Linguistic patterns: 0.18
+- Repetition: 0.14
+- Vocabulary richness: 0.13
+- HC3 corpus similarity: 0.15
 ```
 
 ### Module 4: Image Analysis
@@ -248,7 +268,7 @@ Stages: Text → AI Detection → Evidence → Image
 │  │  │Perplex │ │Bursty  │ │Linguis │ │Repeti  │ │Vocab   │ │   │
 │  │  │ -ity   │ │ -ness  │ │ -tic   │ │ -tion  │ │Richness│ │   │
 │  │  └────────┘ └────────┘ └────────┘ └────────┘ └────────┘ │   │
-│  │              5-Detector Ensemble                         │   │
+│  │              6-Detector Ensemble                          │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │         │                                                       │
 │         ▼                                                       │
@@ -284,10 +304,12 @@ curl http://localhost:8000/health
 ### Option 2: Local Development
 
 ```bash
-# Backend
+# Backend (full paper-aligned API — same as Docker full stack)
 cd backend
 pip install -r requirements.txt
 python run.py
+# Alternative: uvicorn run:app --host 0.0.0.0 --port 8000
+# Modular API only (feature flags in .env): uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 # Frontend (new terminal)
 cd frontend
@@ -318,9 +340,11 @@ The [Dockerfile](./Dockerfile) defaults to **lite** mode on Render (`RENDER=true
 
 ## 🔌 API Reference
 
+Full **`/detect`** orchestration (MC dropout, multimodal flags, DSRG, early exit) is served by **`run.py`** (`python run.py` or `uvicorn run:app`). The **`app.main`** app exposes the same route names with a slimmer pipeline; see [SCOPE.md](SCOPE.md).
+
 ### POST /detect
 
-Full fake news detection with all features.
+Full fake news detection with optional stages. By default `mc_dropout_passes` is **0** (evidence depth uses softmax-linear *k*); set **`mc_dropout_passes`** (e.g. 30) with **`check_evidence: true`** for Table 1–style depth and fast-path rules.
 
 ```bash
 curl -X POST http://localhost:8000/detect \
@@ -331,7 +355,8 @@ curl -X POST http://localhost:8000/detect \
     "explanation_level": "intermediate",
     "check_ai_generated": true,
     "check_evidence": true,
-    "enable_early_exit": true
+    "enable_early_exit": true,
+    "mc_dropout_passes": 0
   }'
 ```
 
@@ -374,23 +399,24 @@ curl -X POST http://localhost:8000/detect \
 
 ## 📈 Performance
 
-### Model Metrics
+### Model metrics (manuscript Table 4 / B, FakeNewsNet-format test n = 3253)
 
-| Metric | Score |
-|--------|-------|
-| **Accuracy** | 85.2% |
-| **F1-Score** | ~80% |
-| **Dataset** | FakeNewsNet (21K) |
-| **Model** | DistilRoBERTa |
+| Setting | Accuracy | Weighted F1 | Macro-F1 |
+|---------|----------|-------------|----------|
+| Baseline (measured) | 85.74% | 85.22 | 0.793 |
+| + DANN (measured) | 85.95% | **85.47** | 0.797 |
+| DIML trainer 2 ep (measured) | 84.94% | 84.58 | 0.786 |
 
-### System Performance
+Exports indexed under [`benchmarks/index.json`](benchmarks/index.json). Your local `best_model.pt` may differ unless copied from a named export.
+
+### System performance
 
 | Metric | Value |
 |--------|-------|
-| **Latency** | 400-500ms (full pipeline) |
-| **Early Exit** | ~200ms (high confidence) |
-| **Knowledge Base** | 12,819 facts |
-| **AI Detectors** | 5 ensemble |
+| **Full API path** | ~400–500 ms (manuscript §3.5) |
+| **Early exit** | ~200 ms (high confidence) |
+| **Knowledge base** | ~12.8K LIAR-derived + hand entries |
+| **AI detectors** | 6 (ensemble micro ~4 ms mean on fixed strings, Table B) |
 
 ---
 
@@ -403,8 +429,10 @@ REMIX_FND_v2/
 │   │   ├── text_analysis_1/        # Text classification
 │   │   ├── image_analysis_2/       # Image manipulation detection
 │   │   ├── evidence_retrieval_3/   # FAISS + LIAR RAG
-│   │   ├── ai_detection_4/         # 5-detector ensemble
+│   │   ├── ai_detection_4/         # 6-detector ensemble
 │   │   ├── explainability_5/       # 3-tier explanations
+│   │   ├── routing/                # MC dropout uncertainty (Table 1 depth)
+│   │   ├── multimodal_fusion/      # Text + image + social + temporal
 │   │   └── early_exit/             # Confidence routing
 │   ├── data_fact_checking/         # LIAR dataset
 │   ├── data_ai_detection/          # HC3 dataset
@@ -427,21 +455,19 @@ REMIX_FND_v2/
 │   ├── fact_checking/              # LIAR dataset
 │   └── ai_detection/               # HC3 dataset
 │
+├── training/scripts/               # train_*, evaluate_*, benchmarks
+├── benchmarks/runs/                # Frozen JSON exports (+ local .pt)
+├── benchmarks/index.json
 ├── docker-compose.yml
+├── SCOPE.md
 └── README.md
 ```
 
 ---
 
-## 🔮 Future Work (Remaining ~30%)
+## 🔮 Future work (extensions beyond frozen benchmarks)
 
-| Feature | Requirement |
-|---------|-------------|
-| Social Context | Twitter/X API access |
-| Temporal Graphs | Real propagation data |
-| Domain-Invariant Meta-Learning | GPU training time |
-| Adversarial Training | Attack data generation |
-| Model Quantization | INT8 optimization |
+The reference stack already includes DANN/DIML trainers, MC routing, DSRG, and the six-detector ensemble. Directions called out in the manuscript (§4.2) include **multilingual** coverage, **bias-aware** stratified evaluation, **cheaper uncertainty proxies** than full MC, **longitudinal** revalidation, and **quantization** for edge deployment—not all are implemented as automated benchmarks (`manifest.json` notes e.g. paraphrase-attack suites as not scripted).
 
 ---
 

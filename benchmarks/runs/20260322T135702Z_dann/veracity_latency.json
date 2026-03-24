@@ -1,0 +1,11 @@
+{
+  "task": "veracity_single_forward_latency",
+  "device": "cuda (Tesla T4)",
+  "model_path": "/content/Remix-fnd/benchmark_runs/20260322T135702Z/baseline_veracity/best_model.pt",
+  "n_runs": 80,
+  "batch_size": 1,
+  "mean_ms": 5.8785,
+  "p50_ms": 4.9956,
+  "p95_ms": 8.32,
+  "note": "Text encoder only; not full /detect API pipeline."
+}

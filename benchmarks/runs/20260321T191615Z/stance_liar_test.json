@@ -1,0 +1,42 @@
+{
+  "task": "stance_liar",
+  "liar_split": "test",
+  "n": 1267,
+  "accuracy": 0.46250986582478293,
+  "macro_f1": 0.45149123578932365,
+  "device": "cuda (Tesla T4)",
+  "checkpoint": "/content/Remix-fnd/benchmark_runs/20260321T191615Z/stance/best_model.pt",
+  "sklearn_report": {
+    "0": {
+      "precision": 0.4735973597359736,
+      "recall": 0.6391982182628062,
+      "f1-score": 0.5440758293838862,
+      "support": 449.0
+    },
+    "1": {
+      "precision": 0.4244791666666667,
+      "recall": 0.4780058651026393,
+      "f1-score": 0.4496551724137931,
+      "support": 341.0
+    },
+    "2": {
+      "precision": 0.49097472924187724,
+      "recall": 0.2851153039832285,
+      "f1-score": 0.36074270557029176,
+      "support": 477.0
+    },
+    "accuracy": 0.46250986582478293,
+    "macro avg": {
+      "precision": 0.46301708521483914,
+      "recall": 0.4674397957828913,
+      "f1-score": 0.45149123578932365,
+      "support": 1267.0
+    },
+    "weighted avg": {
+      "precision": 0.4669199338620055,
+      "recall": 0.46250986582478293,
+      "f1-score": 0.44964225078413383,
+      "support": 1267.0
+    }
+  }
+}

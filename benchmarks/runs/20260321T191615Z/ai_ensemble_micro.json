@@ -1,0 +1,45 @@
+{
+  "task": "ai_ensemble_micro",
+  "n_texts": 4,
+  "mean_latency_ms": 3.882,
+  "stdev_latency_ms": 0.394,
+  "samples": [
+    {
+      "id": "h1",
+      "kind": "humanish",
+      "latency_ms": 3.513,
+      "probability": 25.176383861698152,
+      "confidence": 59.95,
+      "is_ai_generated": false,
+      "verdict": "Likely human-written"
+    },
+    {
+      "id": "h2",
+      "kind": "humanish",
+      "latency_ms": 3.585,
+      "probability": 30.535984093377767,
+      "confidence": 59.95,
+      "is_ai_generated": false,
+      "verdict": "Likely human-written"
+    },
+    {
+      "id": "a1",
+      "kind": "aiish",
+      "latency_ms": 4.118,
+      "probability": 40.078,
+      "confidence": 59.95,
+      "is_ai_generated": false,
+      "verdict": "Likely human-written"
+    },
+    {
+      "id": "a2",
+      "kind": "aiish",
+      "latency_ms": 4.314,
+      "probability": 39.11350649350649,
+      "confidence": 59.95,
+      "is_ai_generated": false,
+      "verdict": "Likely human-written"
+    }
+  ],
+  "note": "Fixed in-repo strings; use for smoke/regression only, not paper Table 2 numbers."
+}

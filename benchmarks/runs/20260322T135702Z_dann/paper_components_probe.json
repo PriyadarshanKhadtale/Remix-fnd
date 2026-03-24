@@ -1,0 +1,80 @@
+{
+  "task": "paper_components_bundle",
+  "sections": {
+    "mc_dropout": {
+      "ok": true,
+      "device": "cuda (Tesla T4)",
+      "requested_device": "cuda (Tesla T4)",
+      "data": {
+        "task": "mc_dropout_routing_probe",
+        "T_mc": 30,
+        "samples": [
+          {
+            "text_preview": "Breaking: experts say the vaccine rollout exceeded expectations in major cities.",
+            "T0": {
+              "mean_fake": 0.07173433154821396,
+              "var_fake": 0.0,
+              "latency_ms": 224.472,
+              "table1_depth": 5
+            },
+            "T30": {
+              "mean_fake": 0.0792137732108434,
+              "var_fake": 0.002324956937512478,
+              "latency_ms": 239.291,
+              "table1_depth": 5
+            }
+          },
+          {
+            "text_preview": "Local diner wins pie contest for third year amid heavy rain downtown.",
+            "T0": {
+              "mean_fake": 0.009798291139304638,
+              "var_fake": 0.0,
+              "latency_ms": 5.956,
+              "table1_depth": 5
+            },
+            "T30": {
+              "mean_fake": 0.015365700206408898,
+              "var_fake": 3.259863323895729e-05,
+              "latency_ms": 162.03,
+              "table1_depth": 5
+            }
+          }
+        ],
+        "note": "Forward latency grows ~linearly with T; routing uses var_fake when T>0."
+      }
+    },
+    "dsrg": {
+      "ok": true,
+      "data": {
+        "task": "dsrg_graph_probe",
+        "kb_facts_used": 30,
+        "graph_nodes": 45,
+        "build_latency_ms": 1.382,
+        "reliability_sample_high_trust": 0.6200000000000001,
+        "reliability_sample_unknown": 0.35,
+        "boost_score_at_0_8_relevance": {
+          "high_trust_source": 0.7316000000000001,
+          "unknown_source": 0.683
+        },
+        "note": "Hand-crafted KB only; full API retrieval adds LIAR + semantic search."
+      }
+    },
+    "multimodal_fusion": {
+      "ok": true,
+      "data": {
+        "task": "multimodal_fusion_probe",
+        "synthetic": true,
+        "fused_fake_probability_percent": 60.788583755493164,
+        "fusion_debug": {
+          "attention_text": 0.673848569393158,
+          "attention_image": 0.13566815853118896,
+          "attention_social": 0.08883047848939896,
+          "attention_temporal": 0.10165280848741531,
+          "p_text_fake": 0.58,
+          "p_image_fake_hint": 0.72
+        },
+        "note": "Synthetic CLS embedding; use /detect for end-to-end numbers on real inputs."
+      }
+    }
+  }
+}

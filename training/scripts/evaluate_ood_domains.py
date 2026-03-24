@@ -4,6 +4,13 @@ Cross-domain (OOD-style) evaluation on FakeNewsNet-style JSON with a `domain` fi
 - Default: macro metrics on the full file (same as evaluate.py) plus optional per-domain F1.
 - With --ood_domain: metrics only on rows from that domain (use when the checkpoint was
   trained without that domain, e.g. train on gossipcop-only then test on politifact).
+
+Manuscript alignment (Table 5 footnote, §3.1): REMIX-FND **PolitiFact / GossipCop subset**
+macro-F1 diagnostics were reported using a **baseline** checkpoint from export
+**20260322T135702Z_dann**, not the **+DANN** checkpoint used for the headline in-domain
+weighted F1 (**20260321T191615Z**). When you cite subset vs full-test numbers, use the
+**same** `--model_path` as in the benchmark manifest for that row, or label the checkpoint
+explicitly so results are not mixed across exports.
 """
 
 from __future__ import annotations

@@ -30,3 +30,5 @@ benchmark_eval_metrics.json
 benchmark_summary.json
 benchmark_results/
 benchmark_runs/
+# Frozen run metrics live under benchmarks/runs/<id>/; keep JSON in git, not checkpoints
+benchmarks/runs/**/*.pt

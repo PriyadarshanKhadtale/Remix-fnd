@@ -10,12 +10,15 @@ import sys
 import time
 from pathlib import Path
 
-# Setup paths
+# Setup paths (match run.py: repo root for models/ and benchmarks/)
 backend_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
-os.chdir(backend_dir.parent)
+repo_root = backend_dir if (backend_dir / "models").exists() else backend_dir.parent
+os.chdir(repo_root)
+load_env_files(backend_dir / ".env", repo_root / ".env", override=False)
 
 import core.torch_env  # noqa: F401
+from core.veracity_checkpoint import load_env_files, resolve_veracity_model_path
 import torch
 
 core.torch_env.limit_pytorch_threads(torch)
@@ -31,9 +34,7 @@ from typing import Optional
 # ============================================
 APP_NAME = "REMIX-FND"
 APP_VERSION = "3.0.0-hybrid"
-MODEL_PATH = Path("models/text_classifier/best_model.pt")
-if not MODEL_PATH.exists():
-    MODEL_PATH = Path("../models/text_classifier/best_model.pt")
+MODEL_PATH = resolve_veracity_model_path(repo_root)
 
 # ============================================
 # Model Definition

@@ -1,0 +1,105 @@
+{
+  "created_utc": "2026-03-22T13:56:57.104916+00:00",
+  "run_dir": "/content/Remix-fnd/benchmark_runs/20260322T135657Z",
+  "device_flag": "auto",
+  "quick": false,
+  "steps": [
+    {
+      "name": "train_veracity_baseline",
+      "command": "/usr/bin/python3 /content/Remix-fnd/training/scripts/train_text_model.py --data_dir /content/Remix-fnd/data/processed/fakenewsnet --output_dir /content/Remix-fnd/benchmark_runs/20260322T135657Z/baseline_veracity --epochs 3 --batch_size 32 --device auto",
+      "ok": true,
+      "artifacts": []
+    },
+    {
+      "name": "eval_veracity_baseline",
+      "command": "/usr/bin/python3 /content/Remix-fnd/training/scripts/evaluate.py --model_path /content/Remix-fnd/benchmark_runs/20260322T135657Z/baseline_veracity/best_model.pt --test_data /content/Remix-fnd/data/processed/fakenewsnet/test.json --batch_size 64 --device auto --output_json /content/Remix-fnd/benchmark_runs/20260322T135657Z/veracity_baseline_eval.json",
+      "ok": true,
+      "artifacts": [
+        "/content/Remix-fnd/benchmark_runs/20260322T135657Z/veracity_baseline_eval.json"
+      ]
+    },
+    {
+      "name": "train_veracity_diml",
+      "command": "/usr/bin/python3 /content/Remix-fnd/training/scripts/train_diml.py --data_dir /content/Remix-fnd/data/processed/fakenewsnet --output_dir /content/Remix-fnd/benchmark_runs/20260322T135657Z/diml_veracity --epochs 2 --batch_size 32 --device auto",
+      "ok": true,
+      "artifacts": []
+    },
+    {
+      "name": "eval_veracity_diml",
+      "command": "/usr/bin/python3 /content/Remix-fnd/training/scripts/evaluate.py --model_path /content/Remix-fnd/benchmark_runs/20260322T135657Z/diml_veracity/best_model.pt --test_data /content/Remix-fnd/data/processed/fakenewsnet/test.json --batch_size 64 --device auto --output_json /content/Remix-fnd/benchmark_runs/20260322T135657Z/veracity_diml_eval.json",
+      "ok": true,
+      "artifacts": [
+        "/content/Remix-fnd/benchmark_runs/20260322T135657Z/veracity_diml_eval.json"
+      ]
+    },
+    {
+      "name": "train_stance_liar",
+      "command": "/usr/bin/python3 /content/Remix-fnd/training/scripts/train_stance_cross_encoder.py --output_dir /content/Remix-fnd/benchmark_runs/20260322T135657Z/stance --epochs 2 --batch_size 32 --device auto",
+      "ok": true,
+      "artifacts": []
+    },
+    {
+      "name": "eval_stance_liar_test",
+      "command": "/usr/bin/python3 /content/Remix-fnd/training/scripts/evaluate_stance_liar.py --checkpoint /content/Remix-fnd/benchmark_runs/20260322T135657Z/stance/best_model.pt --liar_split test --batch_size 64 --device auto --output_json /content/Remix-fnd/benchmark_runs/20260322T135657Z/stance_liar_test.json",
+      "ok": true,
+      "artifacts": [
+        "/content/Remix-fnd/benchmark_runs/20260322T135657Z/stance_liar_test.json"
+      ]
+    },
+    {
+      "name": "ai_ensemble_micro",
+      "command": "/usr/bin/python3 /content/Remix-fnd/training/scripts/benchmark_ai_ensemble.py --output_json /content/Remix-fnd/benchmark_runs/20260322T135657Z/ai_ensemble_micro.json",
+      "ok": true,
+      "artifacts": [
+        "/content/Remix-fnd/benchmark_runs/20260322T135657Z/ai_ensemble_micro.json"
+      ]
+    },
+    {
+      "name": "veracity_forward_latency",
+      "command": "/usr/bin/python3 /content/Remix-fnd/training/scripts/benchmark_veracity_latency.py --model_path /content/Remix-fnd/benchmark_runs/20260322T135657Z/baseline_veracity/best_model.pt --device auto --n_runs 80 --output_json /content/Remix-fnd/benchmark_runs/20260322T135657Z/veracity_latency.json",
+      "ok": true,
+      "artifacts": [
+        "/content/Remix-fnd/benchmark_runs/20260322T135657Z/veracity_latency.json"
+      ]
+    },
+    {
+      "name": "eval_ood_domains",
+      "command": "/usr/bin/python3 /content/Remix-fnd/training/scripts/evaluate_ood_domains.py --model_path /content/Remix-fnd/benchmark_runs/20260322T135657Z/baseline_veracity/best_model.pt --test_data /content/Remix-fnd/data/processed/fakenewsnet/test.json --batch_size 64 --device auto --output_json /content/Remix-fnd/benchmark_runs/20260322T135657Z/ood_domains.json",
+      "ok": true,
+      "artifacts": [
+        "/content/Remix-fnd/benchmark_runs/20260322T135657Z/ood_domains.json"
+      ]
+    },
+    {
+      "name": "paper_components_probe",
+      "command": "/usr/bin/python3 /content/Remix-fnd/training/scripts/benchmark_paper_components.py --model_path /content/Remix-fnd/benchmark_runs/20260322T135657Z/baseline_veracity/best_model.pt --device auto --output_json /content/Remix-fnd/benchmark_runs/20260322T135657Z/paper_components_probe.json --mc_T 30",
+      "ok": true,
+      "artifacts": [
+        "/content/Remix-fnd/benchmark_runs/20260322T135657Z/paper_components_probe.json"
+      ]
+    }
+  ],
+  "paper_gaps": [
+    {
+      "item": "multi_dataset_ood_table",
+      "status": "not_automated",
+      "detail": "Manuscript OOD / six-corpus Table 5-style eval requires frozen splits in config.yaml and trained full stack."
+    },
+    {
+      "item": "full_api_latency",
+      "status": "partial",
+      "detail": "Script benchmarks text-encoder forward only; full /detect pipeline needs separate HTTP harness + warm instances."
+    },
+    {
+      "item": "human_study",
+      "status": "not_automated",
+      "detail": "IRB-gated; no instrument in repo."
+    },
+    {
+      "item": "paraphrase_attack",
+      "status": "not_automated",
+      "detail": "Requires frozen paraphrase model + attack loop (not in training/scripts)."
+    }
+  ],
+  "all_ok": true
+}

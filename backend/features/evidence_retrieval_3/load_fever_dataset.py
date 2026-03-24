@@ -3,6 +3,10 @@ Load FEVER Dataset for Evidence Retrieval
 ==========================================
 FEVER = Fact Extraction and VERification (20K+ claims)
 Wikipedia-based fact verification dataset.
+
+**Optional developer path.** The default `EvidenceRetriever` / `ExpandedKnowledgeBase`
+loads the **LIAR**-based KB from `retriever.py`. FEVER is not wired into that default
+pipeline; use this module only if you build a custom KB loader. See repository `SCOPE.md`.
 """
 
 import json

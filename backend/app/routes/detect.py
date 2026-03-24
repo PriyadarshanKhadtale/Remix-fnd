@@ -9,8 +9,8 @@ from pydantic import BaseModel
 from typing import Optional
 
 from ..config import settings
-from ...features.text_analysis_1 import predictor as text_predictor
-from ...features.ai_detection_4 import detector as ai_detector
+from features.text_analysis_1 import predictor as text_predictor
+from features.ai_detection_4 import detector as ai_detector
 
 router = APIRouter()
 
@@ -60,7 +60,7 @@ async def detect_fake_news(request: DetectionRequest):
     
     # Optional: Explanation
     if request.include_explanation and settings.ENABLE_EXPLAINABILITY:
-        from ...features.explainability_5 import explainer
+        from features.explainability_5 import explainer
         response.explanation = explainer.explain(request.text, result)
     
     return response

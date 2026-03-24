@@ -1,0 +1,37 @@
+{
+  "accuracy_percent": 84.937,
+  "macro_precision": 0.8015093566683895,
+  "macro_recall": 0.7741445848160597,
+  "macro_f1": 0.7861203158930893,
+  "n_test": 3253,
+  "device": "cuda (Tesla T4)",
+  "model_path": "/content/Remix-fnd/benchmark_runs/20260322T135657Z/diml_veracity/best_model.pt",
+  "test_data": "/content/Remix-fnd/data/processed/fakenewsnet/test.json",
+  "sklearn_report": {
+    "0": {
+      "precision": 0.88481062085123,
+      "recall": 0.9207639171068671,
+      "f1-score": 0.9024293110314616,
+      "support": 2461.0
+    },
+    "1": {
+      "precision": 0.7182080924855492,
+      "recall": 0.6275252525252525,
+      "f1-score": 0.6698113207547169,
+      "support": 792.0
+    },
+    "accuracy": 0.8493698124807869,
+    "macro avg": {
+      "precision": 0.8015093566683895,
+      "recall": 0.7741445848160597,
+      "f1-score": 0.7861203158930893,
+      "support": 3253.0
+    },
+    "weighted avg": {
+      "precision": 0.8442483083810118,
+      "recall": 0.8493698124807869,
+      "f1-score": 0.8457943745730596,
+      "support": 3253.0
+    }
+  }
+}

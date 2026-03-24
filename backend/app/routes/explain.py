@@ -49,8 +49,8 @@ async def explain_prediction(request: ExplainRequest):
     if not request.text.strip():
         raise HTTPException(status_code=400, detail="Text cannot be empty")
     
-    from ...features.explainability_5 import explainer
-    from ...features.text_analysis_1 import predictor
+    from features.explainability_5 import explainer
+    from features.text_analysis_1 import predictor
     
     # Get prediction first
     prediction = predictor.predict(request.text)

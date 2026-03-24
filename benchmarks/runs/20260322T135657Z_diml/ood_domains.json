@@ -1,0 +1,9 @@
+{
+  "n_evaluated": 3253,
+  "macro_f1": 0.7716293491927797,
+  "ood_domain": null,
+  "per_domain_macro_f1": {
+    "gossipcop": 0.7794518604421634,
+    "politifact": 0.636085806641199
+  }
+}

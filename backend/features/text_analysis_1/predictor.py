@@ -4,10 +4,12 @@ Text Predictor
 High-level prediction interface for text analysis.
 """
 
+import os
 import torch
 from pathlib import Path
 from typing import Dict, Any, Optional
 
+from core.veracity_checkpoint import load_env_files, resolve_veracity_model_path
 from .model import TextClassifier
 from .preprocessor import TextPreprocessor
 
@@ -102,18 +104,33 @@ def get_predictor() -> TextPredictor:
     
     if _predictor is None:
         _predictor = TextPredictor()
-        
-        # Try to load model from default location
-        model_paths = [
-            Path(__file__).parent.parent.parent.parent / "models" / "text_classifier" / "best_model.pt",
-            Path(__file__).parent.parent.parent.parent.parent / "models" / "text_classifier" / "best_model.pt",
-        ]
-        
-        for path in model_paths:
-            if path.exists():
-                _predictor.load_model(str(path))
-                break
-    
+        backend_dir = Path(__file__).resolve().parents[2]
+        repo_root = Path(__file__).resolve().parents[3]
+        load_env_files(backend_dir / ".env", repo_root / ".env", override=False)
+
+        to_load: Optional[Path] = None
+        explicit = os.environ.get("TEXT_MODEL_PATH", "").strip()
+        if explicit:
+            ep = Path(explicit)
+            if ep.is_file():
+                to_load = ep
+            else:
+                print(f"⚠ TextPredictor: TEXT_MODEL_PATH not found: {ep}")
+        if to_load is None:
+            cand = resolve_veracity_model_path(repo_root)
+            if cand.is_file():
+                to_load = cand
+        if to_load is None:
+            fb = repo_root.parent / "models" / "text_classifier" / "best_model.pt"
+            if fb.is_file():
+                to_load = fb
+
+        if to_load is not None:
+            try:
+                _predictor.load_model(str(to_load))
+            except Exception as e:
+                print(f"⚠ TextPredictor: could not load {to_load}: {e}")
+
     return _predictor
 
 
